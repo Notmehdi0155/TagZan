@@ -44,10 +44,9 @@ def download_file(file_id):
 # ---------- پردازش ویدیو ----------
 def process_video(input_path, output_path):
     filter_text = (
-        "scale=1280:-2,"  # کاهش رزولوشن
         "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:"
         "text='@JAGH_TEL':fontcolor=white@0.25:fontsize=h/12:x=(w-text_w)/2:"
-        "y='if(gte(t\\,30)*lte(mod(t-30\\,50)\\,10)\\,(h-text_h)-(mod(t-30\\,50))*h/10\\,NAN)'"
+        "y='if(gte(t\\,20)*lte(mod(t-20\\,45)\\,5)\\,h-(mod(t-20\\,45))*h/5\\,NAN)'"
     )
     cmd = [
         'ffmpeg', '-y',
@@ -55,7 +54,6 @@ def process_video(input_path, output_path):
         '-vf', filter_text,
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
-        '-r', '30',
         '-c:a', 'copy',
         output_path
     ]
@@ -135,4 +133,3 @@ def set_webhook():
 if __name__ == '__main__':
     set_webhook()
     app.run(host="0.0.0.0", port=10000)
-    
