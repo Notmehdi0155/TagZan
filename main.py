@@ -69,15 +69,27 @@ def index():
 @app.route('/webhook', methods=["POST"])
 def webhook():
     data = request.get_json()
-    if not data or "message" not in data:
+    if not data:
         return "ok"
 
-    message = data["message"]
+    message = data.get("message") or data.get("edited_message")
+    if not message:
+        return "ok"
+
     chat_id = message["chat"]["id"]
     user_id = message["from"]["id"]
 
     if user_id != ADMIN_ID:
         send_message(chat_id, "⛔ شما اجازه دسترسی ندارید.")
+        return "ok"
+
+    text = message.get("text", "")
+
+    if text == "/start":
+        # ریست وضعیت ربات
+        if os.path.exists("last_video.txt"):
+            os.remove("last_video.txt")
+        send_message(chat_id, "✅ ربات آماده است. لطفاً ویدیو را ارسال کنید.")
         return "ok"
 
     if "video" in message:
@@ -88,7 +100,7 @@ def webhook():
         send_message(chat_id, "✅ ویدیو ذخیره شد. برای افزودن آیدی، دستور /addid را بزن.")
         return "ok"
 
-    if "text" in message and message["text"] == "/addid":
+    if text == "/addid":
         if not os.path.exists("last_video.txt"):
             send_message(chat_id, "❌ هیچ ویدیویی برای پردازش یافت نشد.")
             return "ok"
