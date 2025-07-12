@@ -32,7 +32,7 @@ def send_video(chat_id, video_path):
         )
 
 def download_file(file_id):
-    time.sleep(1.5)  # کمی صبر برای اینکه فایل در تلگرام آماده شود
+    time.sleep(1.5)
     url = f"https://api.telegram.org/bot{TOKEN}/getFile?file_id={file_id}"
     response = requests.get(url)
     try:
@@ -117,6 +117,8 @@ def webhook():
     message = data.get("message") or data.get("edited_message")
     if not message:
         return "ok"
+
+    app.logger.warning(f"📥 پیام دریافتی کامل: {message}")
 
     chat_id = message["chat"]["id"]
     user_id = message["from"]["id"]
