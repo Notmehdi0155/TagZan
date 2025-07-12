@@ -6,8 +6,8 @@ import subprocess
 from threading import Thread
 
 # تنظیمات
-TOKEN = "توکن ربات خودت اینجا بذار"
-ADMIN_ID = 123456789  # آیدی عددی خودت
+TOKEN = "7686139376:AAF0Dt-wMbZk3YsQKd78BFE2vNLEira0KOY"
+ADMIN_ID = 6387942633  # آیدی عددی خودت
 WEBHOOK_URL = "https://your-app-name.onrender.com/webhook"
 
 app = Flask(__name__)
