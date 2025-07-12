@@ -5,6 +5,7 @@ import subprocess
 from threading import Thread
 import sys
 import uuid
+import time
 
 # ----------- تنظیمات اصلی ------------
 TOKEN = "7686139376:AAF0Dt-wMbZk3YsQKd78BFE2vNLEira0KOY"
@@ -31,6 +32,7 @@ def send_video(chat_id, video_path):
         )
 
 def download_file(file_id):
+    time.sleep(1.5)  # کمی صبر برای اینکه فایل در تلگرام آماده شود
     url = f"https://api.telegram.org/bot{TOKEN}/getFile?file_id={file_id}"
     response = requests.get(url)
     try:
@@ -129,8 +131,15 @@ def webhook():
         send_message(chat_id, "✅ ربات آماده است. لطفاً ویدیو را بفرستید.")
         return "ok"
 
+    file_id = None
     if "video" in message:
         file_id = message["video"]["file_id"]
+    elif "document" in message and message["document"].get("mime_type", "").startswith("video"):
+        file_id = message["document"]["file_id"]
+    elif "video_note" in message:
+        file_id = message["video_note"]["file_id"]
+
+    if file_id:
         filepath = download_file(file_id)
         if not filepath:
             send_message(chat_id, "❌ خطا در دریافت فایل. لطفاً دوباره تلاش کنید.")
