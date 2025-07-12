@@ -36,11 +36,11 @@ def download_file(file_id):
     try:
         file_info = response.json()
     except Exception as e:
-        print("❌ خطا در parsing JSON:", response.text)
+        app.logger.error(f"❌ خطا در parsing JSON: {response.text}")
         return None
 
     if 'result' not in file_info:
-        print("❌ پاسخ ناقص دریافت شد:", file_info)
+        app.logger.error(f"❌ پاسخ ناقص دریافت شد: {file_info}")
         return None
 
     file_path = file_info['result']['file_path']
@@ -50,13 +50,13 @@ def download_file(file_id):
     try:
         video_data = requests.get(file_url)
         if video_data.status_code != 200:
-            print(f"❌ خطا در دانلود فایل از تلگرام: کد {video_data.status_code}")
+            app.logger.error(f"❌ خطا در دانلود فایل از تلگرام: کد {video_data.status_code}")
             return None
         with open(local_path, 'wb') as f:
             f.write(video_data.content)
         return local_path
     except Exception as e:
-        print("❌ خطا در ذخیره‌سازی فایل:", e)
+        app.logger.error(f"❌ خطا در ذخیره‌سازی فایل: {str(e)}")
         return None
 
 # ---------- پردازش ویدیو ----------
@@ -81,7 +81,7 @@ def process_video(input_path, output_path):
         subprocess.run(cmd, check=True)
         return True
     except Exception as e:
-        print(f"خطا در پردازش ویدیو: {e}")
+        app.logger.error(f"❌ خطا در پردازش ویدیو: {str(e)}")
         return False
 
 # ---------- صف پردازش ----------
