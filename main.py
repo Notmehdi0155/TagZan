@@ -29,6 +29,11 @@ def send_video(chat_id, video_path):
 
 def download_file(file_id):
     file_info = requests.get(f"https://api.telegram.org/bot{TOKEN}/getFile?file_id={file_id}").json()
+
+    if 'result' not in file_info:
+        print("❌ خطا در دریافت اطلاعات فایل:", file_info)
+        return None
+
     file_path = file_info['result']['file_path']
     local_path = os.path.join(FILE_DIR, os.path.basename(file_path))
     file_url = f"https://api.telegram.org/file/bot{TOKEN}/{file_path}"
@@ -86,15 +91,17 @@ def webhook():
     text = message.get("text", "")
 
     if text == "/start":
-        # ریست وضعیت ربات
         if os.path.exists("last_video.txt"):
             os.remove("last_video.txt")
-        send_message(chat_id, "✅ ربات آماده است. لطفاً ویدیو را ارسال کنید.")
+        send_message(chat_id, "✅ ربات ریست شد. لطفاً ویدیو را بفرستید.")
         return "ok"
 
     if "video" in message:
         file_id = message["video"]["file_id"]
         filepath = download_file(file_id)
+        if not filepath:
+            send_message(chat_id, "❌ خطا در دریافت فایل. لطفاً دوباره تلاش کنید.")
+            return "ok"
         with open("last_video.txt", "w") as f:
             f.write(filepath)
         send_message(chat_id, "✅ ویدیو ذخیره شد. برای افزودن آیدی، دستور /addid را بزن.")
@@ -128,3 +135,4 @@ def set_webhook():
 if __name__ == '__main__':
     set_webhook()
     app.run(host="0.0.0.0", port=10000)
+    
