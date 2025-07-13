@@ -9,7 +9,7 @@ import time
 
 # ----------- تنظیمات اصلی ------------
 TOKEN = "7686139376:AAF0Dt-wMbZk3YsQKd78BFE2vNLEira0KOY"
-ADMIN_ID = 6387942633
+ADMIN_ID = 7189616405
 WEBHOOK_URL = "https://tagzan.onrender.com/webhook"
 
 app = Flask(__name__)
@@ -50,15 +50,15 @@ def download_file(file_id):
     file_url = f"https://api.telegram.org/file/bot{TOKEN}/{file_path}"
 
     try:
-        video_data = requests.get(file_url)
-        if video_data.status_code != 200:
-            app.logger.error(f"❌ خطا در دانلود فایل از تلگرام: کد {video_data.status_code}")
-            return None
-        with open(local_path, 'wb') as f:
-            f.write(video_data.content)
+        with requests.get(file_url, stream=True, timeout=60) as r:
+            r.raise_for_status()
+            with open(local_path, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
         return local_path
     except Exception as e:
-        app.logger.error(f"❌ خطا در ذخیره‌سازی فایل: {str(e)}")
+        app.logger.error(f"❌ خطا در دانلود chunk‌شده فایل: {str(e)}")
         return None
 
 # ---------- پردازش ویدیو ----------
@@ -134,12 +134,16 @@ def webhook():
         return "ok"
 
     file_id = None
+    file_size = 0
     if "video" in message:
         file_id = message["video"]["file_id"]
+        file_size = message["video"].get("file_size", 0)
     elif "document" in message and message["document"].get("mime_type", "").startswith("video"):
         file_id = message["document"]["file_id"]
+        file_size = message["document"].get("file_size", 0)
     elif "video_note" in message:
         file_id = message["video_note"]["file_id"]
+        file_size = message["video_note"].get("file_size", 0)
 
     if file_id:
         filepath = download_file(file_id)
