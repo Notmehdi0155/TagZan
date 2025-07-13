@@ -3,7 +3,6 @@ import requests
 import os
 import subprocess
 from threading import Thread
-import sys
 import uuid
 import time
 
@@ -15,53 +14,37 @@ WEBHOOK_URL = "https://tagzan.onrender.com/webhook"
 app = Flask(__name__)
 FILE_DIR = "downloads"
 os.makedirs(FILE_DIR, exist_ok=True)
-
-# ذخیره مسیر آخرین فایل برای هر کاربر
 user_last_file = {}
 
 # ---------- ابزارهای کمکی ----------
 def send_message(chat_id, text):
-    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", json={
-        "chat_id": chat_id,
-        "text": text
-    })
+    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", json={"chat_id": chat_id, "text": text})
 
 def send_video(chat_id, video_path):
     with open(video_path, 'rb') as video:
-        requests.post(
-            f"https://api.telegram.org/bot{TOKEN}/sendVideo",
-            data={"chat_id": chat_id, "supports_streaming": True},
-            files={"video": video}
-        )
+        requests.post(f"https://api.telegram.org/bot{TOKEN}/sendVideo", data={"chat_id": chat_id, "supports_streaming": True}, files={"video": video})
 
 def download_file(file_id, chat_id):
-    time.sleep(1.5)
     url = f"https://api.telegram.org/bot{TOKEN}/getFile?file_id={file_id}"
-    response = requests.get(url)
-    try:
-        file_info = response.json()
-    except Exception as e:
-        app.logger.error(f"❌ خطا در parsing JSON: {response.text}")
+    r = requests.get(url).json()
+    if 'result' not in r:
+        send_message(chat_id, "⚠️ خطا در دریافت فایل. لطفاً ویدیو را دوباره فوروارد کنید یا به صورت فایل بفرستید.")
         return None
 
-    if 'result' not in file_info or 'file_path' not in file_info['result']:
-        send_message(chat_id, "⚠️ امکان دریافت مستقیم این فایل وجود ندارد. لطفاً فایل را دوباره فوروارد کنید یا به صورت داکیومنت بفرستید.")
-        return None
-
-    file_path = file_info['result']['file_path']
+    file_path = r['result']['file_path']
     local_path = os.path.join(FILE_DIR, os.path.basename(file_path))
     file_url = f"https://api.telegram.org/file/bot{TOKEN}/{file_path}"
 
     try:
-        with requests.get(file_url, stream=True, timeout=120) as r:
-            r.raise_for_status()
+        with requests.get(file_url, stream=True) as res:
+            res.raise_for_status()
             with open(local_path, 'wb') as f:
-                for chunk in r.iter_content(chunk_size=8192):
+                for chunk in res.iter_content(chunk_size=8192):
                     if chunk:
                         f.write(chunk)
         return local_path
     except Exception as e:
-        app.logger.error(f"❌ خطا در دانلود فایل: {str(e)}")
+        app.logger.error(f"❌ خطا در دانلود فایل: {e}")
         return None
 
 # ---------- پردازش ویدیو ----------
@@ -86,13 +69,11 @@ def process_video(input_path, output_path):
         subprocess.run(cmd, check=True)
         return True
     except Exception as e:
-        app.logger.error(f"❌ خطا در پردازش ویدیو: {str(e)}")
+        app.logger.error(f"❌ خطا در پردازش ویدیو: {e}")
         return False
 
-# ---------- صف پردازش ----------
 def queue_job(chat_id, input_path):
-    temp_id = uuid.uuid4().hex
-    output_path = input_path.replace(".mp4", f"_tagged_{temp_id}.mp4")
+    output_path = input_path.replace(".mp4", f"_tagged_{uuid.uuid4().hex}.mp4")
 
     def job():
         send_message(chat_id, "🎬 در حال افزودن تگ متحرک... لطفاً منتظر بمانید.")
@@ -100,14 +81,13 @@ def queue_job(chat_id, input_path):
         if success:
             send_video(chat_id, output_path)
         else:
-            send_message(chat_id, "❌ خطا در پردازش ویدیو. لطفاً دوباره تلاش کنید.")
-        for p in [input_path, output_path]:
-            if os.path.exists(p): os.remove(p)
+            send_message(chat_id, "❌ خطا در پردازش ویدیو.")
+        for f in [input_path, output_path]:
+            if os.path.exists(f): os.remove(f)
         user_last_file.pop(chat_id, None)
 
     Thread(target=job).start()
 
-# ---------- هندل وبهوک ----------
 @app.route('/')
 def index():
     return 'ربات فعال است'
@@ -115,77 +95,62 @@ def index():
 @app.route('/webhook', methods=["POST"])
 def webhook():
     data = request.get_json()
-    if not data:
-        return "ok"
+    if not data: return "ok"
+    msg = data.get("message") or data.get("edited_message")
+    if not msg: return "ok"
 
-    message = data.get("message") or data.get("edited_message")
-    if not message:
-        return "ok"
-
-    app.logger.warning(f"📥 پیام دریافتی کامل: {message}")
-
-    chat_id = message["chat"]["id"]
-    user_id = message["from"]["id"]
+    chat_id = msg["chat"]["id"]
+    user_id = msg["from"]["id"]
+    text = msg.get("text", "")
 
     if user_id != ADMIN_ID:
         send_message(chat_id, "⛔ شما اجازه دسترسی ندارید.")
         return "ok"
 
-    text = message.get("text", "")
-    file_id = None
-
     if text == "/start":
-        send_message(chat_id, "✅ خوش آمدید! لطفاً ویدیوی خود را فوروارد کنید. سپس برای افزودن تگ، دستور /tag را ارسال نمایید.")
+        send_message(chat_id, "🎥 لطفاً ویدیوی خود را فوروارد کنید. سپس /tag را بفرستید.")
         return "ok"
 
     if text == "/tag":
         if chat_id in user_last_file:
             queue_job(chat_id, user_last_file[chat_id])
         else:
-            send_message(chat_id, "📭 هنوز هیچ ویدیویی ذخیره نشده. لطفاً ابتدا یک ویدیو ارسال کنید.")
+            send_message(chat_id, "📭 لطفاً ابتدا یک ویدیو ارسال کنید.")
         return "ok"
 
-    if "video" in message:
-        file_id = message["video"]["file_id"]
-    elif "document" in message and message["document"].get("mime_type", "").startswith("video"):
-        file_id = message["document"]["file_id"]
-    elif "video_note" in message:
-        file_id = message["video_note"]["file_id"]
+    file_id = None
+    if "video" in msg:
+        file_id = msg["video"]["file_id"]
+    elif "document" in msg and msg["document"].get("mime_type", "").startswith("video"):
+        file_id = msg["document"]["file_id"]
 
-    # اگر فایل فوروارد شده باشه، با copyMessage آن را به خود ربات بفرست
-    if file_id and "forward_origin" in message:
-        resp = requests.post(f"https://api.telegram.org/bot{TOKEN}/copyMessage", json={
+    # اگر پیام فورواردی بود، ربات آن را به خودش copy می‌کند و از فایل جدید استفاده می‌کند
+    if file_id and "forward_origin" in msg:
+        copy_resp = requests.post(f"https://api.telegram.org/bot{TOKEN}/copyMessage", json={
             "chat_id": ADMIN_ID,
             "from_chat_id": chat_id,
-            "message_id": message["message_id"]
+            "message_id": msg["message_id"]
         }).json()
-        if resp.get("ok"):
-            new_msg_id = resp["result"]["message_id"]
-            # دریافت فایل جدید از پیام کپی‌شده
-            time.sleep(1.5)
-            update_resp = requests.get(f"https://api.telegram.org/bot{TOKEN}/getUpdates").json()
-            for update in reversed(update_resp.get("result", [])):
-                msg = update.get("message")
-                if msg and msg.get("message_id") == new_msg_id:
-                    file_id = msg.get("video", {}).get("file_id") or \
-                              msg.get("document", {}).get("file_id")
-                    break
+
+        if copy_resp.get("ok"):
+            new_file_id = copy_resp["result"].get("video", {}).get("file_id") or \
+                           copy_resp["result"].get("document", {}).get("file_id")
+            if new_file_id:
+                file_id = new_file_id
 
     if file_id:
-        filepath = download_file(file_id, chat_id)
-        if not filepath:
-            return "ok"
-        user_last_file[chat_id] = filepath
-        send_message(chat_id, "📥 ویدیو با موفقیت ذخیره شد. برای افزودن تگ، دستور /tag را ارسال کنید.")
+        path = download_file(file_id, chat_id)
+        if path:
+            user_last_file[chat_id] = path
+            send_message(chat_id, "✅ ویدیو ذخیره شد. برای افزودن تگ /tag را بفرست.")
         return "ok"
 
     return "ok"
 
-# ---------- تنظیم Webhook در اجرا ----------
 def set_webhook():
     requests.get(f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={WEBHOOK_URL}")
 
 if __name__ == '__main__':
     set_webhook()
     app.run(host="0.0.0.0", port=10000)
-
+    
