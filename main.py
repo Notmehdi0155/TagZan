@@ -45,7 +45,7 @@ def download_file(file_id, chat_id):
         return None
 
     if 'result' not in file_info or 'file_path' not in file_info['result']:
-        send_message(chat_id, "⚠️ امکان دریافت این فایل وجود ندارد. لطفاً ویدیو را مستقیم ارسال کنید نه فوروارد.")
+        send_message(chat_id, "⚠️ امکان دریافت مستقیم این فایل وجود ندارد. لطفاً فایل را دوباره فوروارد کنید یا به صورت داکیومنت بفرستید.")
         return None
 
     file_path = file_info['result']['file_path']
@@ -152,6 +152,25 @@ def webhook():
     elif "video_note" in message:
         file_id = message["video_note"]["file_id"]
 
+    # اگر فایل فوروارد شده باشه، با copyMessage آن را به خود ربات بفرست
+    if file_id and "forward_origin" in message:
+        resp = requests.post(f"https://api.telegram.org/bot{TOKEN}/copyMessage", json={
+            "chat_id": ADMIN_ID,
+            "from_chat_id": chat_id,
+            "message_id": message["message_id"]
+        }).json()
+        if resp.get("ok"):
+            new_msg_id = resp["result"]["message_id"]
+            # دریافت فایل جدید از پیام کپی‌شده
+            time.sleep(1.5)
+            update_resp = requests.get(f"https://api.telegram.org/bot{TOKEN}/getUpdates").json()
+            for update in reversed(update_resp.get("result", [])):
+                msg = update.get("message")
+                if msg and msg.get("message_id") == new_msg_id:
+                    file_id = msg.get("video", {}).get("file_id") or \
+                              msg.get("document", {}).get("file_id")
+                    break
+
     if file_id:
         filepath = download_file(file_id, chat_id)
         if not filepath:
@@ -169,4 +188,4 @@ def set_webhook():
 if __name__ == '__main__':
     set_webhook()
     app.run(host="0.0.0.0", port=10000)
-    
+
