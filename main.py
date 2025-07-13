@@ -9,7 +9,7 @@ import time
 
 # ----------- تنظیمات اصلی ------------
 TOKEN = "7686139376:AAF0Dt-wMbZk3YsQKd78BFE2vNLEira0KOY"
-ADMIN_ID = 7189616405
+ADMIN_ID = 6387942633
 WEBHOOK_URL = "https://tagzan.onrender.com/webhook"
 
 app = Flask(__name__)
