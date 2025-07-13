@@ -34,7 +34,7 @@ def send_video(chat_id, video_path):
             files={"video": video}
         )
 
-def download_file(file_id):
+def download_file(file_id, chat_id):
     time.sleep(1.5)
     url = f"https://api.telegram.org/bot{TOKEN}/getFile?file_id={file_id}"
     response = requests.get(url)
@@ -44,8 +44,8 @@ def download_file(file_id):
         app.logger.error(f"❌ خطا در parsing JSON: {response.text}")
         return None
 
-    if 'result' not in file_info:
-        app.logger.error(f"❌ پاسخ ناقص دریافت شد: {file_info}")
+    if 'result' not in file_info or 'file_path' not in file_info['result']:
+        send_message(chat_id, "⚠️ امکان دریافت این فایل وجود ندارد. لطفاً ویدیو را مستقیم ارسال کنید نه فوروارد.")
         return None
 
     file_path = file_info['result']['file_path']
@@ -61,7 +61,7 @@ def download_file(file_id):
                         f.write(chunk)
         return local_path
     except Exception as e:
-        app.logger.error(f"❌ خطا در دانلود chunk‌شده فایل: {str(e)}")
+        app.logger.error(f"❌ خطا در دانلود فایل: {str(e)}")
         return None
 
 # ---------- پردازش ویدیو ----------
@@ -153,9 +153,8 @@ def webhook():
         file_id = message["video_note"]["file_id"]
 
     if file_id:
-        filepath = download_file(file_id)
+        filepath = download_file(file_id, chat_id)
         if not filepath:
-            send_message(chat_id, "❌ خطا در دریافت فایل. لطفاً دوباره تلاش کنید.")
             return "ok"
         user_last_file[chat_id] = filepath
         send_message(chat_id, "📥 ویدیو با موفقیت ذخیره شد. برای افزودن تگ، دستور /tag را ارسال کنید.")
@@ -170,3 +169,4 @@ def set_webhook():
 if __name__ == '__main__':
     set_webhook()
     app.run(host="0.0.0.0", port=10000)
+    
