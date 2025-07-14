@@ -1,5 +1,3 @@
-# utils.py
-
 import requests
 from config import BOT_TOKEN, REQUIRED_CHANNELS, PING_URL, PING_INTERVAL
 from database import update_left
@@ -17,10 +15,15 @@ def send_message(chat_id, text, reply_markup=None):
         payload['reply_markup'] = reply_markup
     requests.post(f'{API_URL}/sendMessage', json=payload)
 
+def delete_message(chat_id, message_id):
+    # حذف پیام در چت مشخص
+    requests.post(f'{API_URL}/deleteMessage', json={'chat_id': chat_id, 'message_id': message_id})
+
 def is_subscribed(user_id):
     for ch in REQUIRED_CHANNELS:
         res = requests.get(f'{API_URL}/getChatMember', params={'chat_id': ch, 'user_id': user_id}).json()
-        if res.get('result') is None or res['result'].get('status') in ['left', 'kicked']:
+        status = res.get('result', {}).get('status') if res.get('result') else None
+        if status in ['left', 'kicked', None]:
             return False
     return True
 
