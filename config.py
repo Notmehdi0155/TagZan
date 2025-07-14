@@ -14,4 +14,4 @@ ADMIN_ID = 6387942633
 PING_URL = 'https://tagzan.onrender.com'
 
 # مدت زمان چک لفت دادن بر حسب ثانیه
-PING_INTERVAL = 240
+PING_INTERVAL = 1
