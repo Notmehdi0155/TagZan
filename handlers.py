@@ -1,15 +1,28 @@
-# handlers.py
-
 from config import ADMIN_ID, BOT_USERNAME
 from utils import send_message, is_subscribed
 from database import *
 
+# متغیر وضعیت برای انتظار دریافت متن لیست برتر از ادمین
+awaiting_leaderboard_text = False
+
+# متغیر متن لیست برتر (قابل به‌روزرسانی توسط ادمین)
+leaderboard_text = '🟨 هنوز لیست آپدیت نشده'
+
 def handle_message(msg):
+    global awaiting_leaderboard_text, leaderboard_text
+
     text = msg.get('text', '')
     user_id = msg['from']['id']
     fullname = msg['from'].get('first_name', '')
     username = msg['from'].get('username') or 'NoUsername'
     chat_id = msg['chat']['id']
+
+    # اگر ادمین در انتظار ارسال متن لیست برتر است
+    if user_id == ADMIN_ID and awaiting_leaderboard_text:
+        leaderboard_text = text  # ذخیره متن جدید
+        awaiting_leaderboard_text = False
+        send_message(chat_id, '✅ لیست نفرات برتر به‌روزرسانی شد.')
+        return
 
     # --- ثبت کاربر اگر جدید باشد ---
     if text.startswith('/start'):
@@ -28,12 +41,17 @@ def handle_message(msg):
     if user_id == ADMIN_ID:
         if text == '/panel':
             send_admin_panel(chat_id)
-        elif text.startswith('🟨'):
-            global leaderboard_text
-            leaderboard_text = text
-            send_message(chat_id, '✅ لیست نفرات برتر به‌روزرسانی شد.')
+            return
+
+        elif text == 'نوشتن لیست نفرات برتر':
+            awaiting_leaderboard_text = True
+            send_message(chat_id, 'لطفا متن لیست نفرات برتر را ارسال کنید.')
+            return
+
         elif text == 'شروع ربات':
             send_message(chat_id, '✅ مسابقه آغاز شد.')
+            return
+
         elif text == '3 نفر برتر واقعی':
             result = ''
             top = get_top_inviters(3)
@@ -42,7 +60,7 @@ def handle_message(msg):
                 if u:
                     result += f'🏆 {u[2]} (@{u[1]}) → {count} دعوت\n'
             send_message(chat_id, result or 'هیچ دعوتی نشده.')
-        return
+            return
 
     # --- دکمه‌ها ---
     if text == 'دعوت دوستان💰':
@@ -55,21 +73,26 @@ def handle_message(msg):
             f'کد دعوت شما 👇\n{link}',
             reply_markup=btn_back()
         )
+        return
 
     elif text == 'مبلغ جوایز🤑':
         send_message(chat_id, '📌 برای دیدن جوایز روی لینک زیر کلیک کن:\nhttps://t.me/YourChannelRules', reply_markup=btn_back())
+        return
 
     elif text == 'مشاهده نفرات برتر 📊':
         send_message(chat_id, '⏳ در حال بارگذاری ...')
         import time
         time.sleep(3)
         send_message(chat_id, leaderboard_text, reply_markup=btn_back())
+        return
 
     elif text == 'پروفایل من👤':
         send_message(chat_id, 'فقط 10 نفر برتر به این بخش دسترسی دارند 🏆', reply_markup=btn_back())
+        return
 
     elif text == 'برگشت 🔙':
         send_main_panel(chat_id)
+        return
 
 def handle_callback(query):
     data = query['data']
@@ -112,6 +135,3 @@ def main_keyboard():
 
 def btn_back():
     return {'keyboard': [[{'text': 'برگشت 🔙'}]], 'resize_keyboard': True}
-
-# متغیر برای نمایش لیست برتر
-leaderboard_text = '🟨 هنوز لیست آپدیت نشده'
