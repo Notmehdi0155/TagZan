@@ -1,15 +1,16 @@
+from datetime import datetime, timedelta
 from config import ADMIN_ID, BOT_USERNAME
 from utils import send_message, is_subscribed
 from database import *
 
-# متغیر وضعیت برای انتظار دریافت متن لیست برتر از ادمین
+# متغیرهای وضعیت
 awaiting_leaderboard_text = False
+awaiting_competition_days = False
 
-# متغیر متن لیست برتر (قابل به‌روزرسانی توسط ادمین)
 leaderboard_text = '🟨 هنوز لیست آپدیت نشده'
 
 def handle_message(msg):
-    global awaiting_leaderboard_text, leaderboard_text
+    global awaiting_leaderboard_text, leaderboard_text, awaiting_competition_days
 
     text = msg.get('text', '')
     user_id = msg['from']['id']
@@ -17,11 +18,25 @@ def handle_message(msg):
     username = msg['from'].get('username') or 'NoUsername'
     chat_id = msg['chat']['id']
 
-    # اگر ادمین در انتظار ارسال متن لیست برتر است
+    # --- اگر ادمین در انتظار ارسال متن لیست برتر است ---
     if user_id == ADMIN_ID and awaiting_leaderboard_text:
         leaderboard_text = text  # ذخیره متن جدید
         awaiting_leaderboard_text = False
         send_message(chat_id, '✅ لیست نفرات برتر به‌روزرسانی شد.')
+        return
+
+    # --- اگر ادمین در انتظار ارسال تعداد روز مسابقه است ---
+    if user_id == ADMIN_ID and awaiting_competition_days:
+        try:
+            days = int(text)
+            if days <= 0:
+                raise ValueError()
+            start_time = datetime.utcnow()
+            set_competition(start_time, days)  # ذخیره مسابقه در دیتابیس
+            awaiting_competition_days = False
+            send_message(chat_id, f'✅ مسابقه با مدت {days} روز شروع شد و از همین الان فعال است.')
+        except:
+            send_message(chat_id, '❌ لطفا فقط یک عدد صحیح بزرگتر از صفر وارد کنید.')
         return
 
     # --- ثبت کاربر اگر جدید باشد ---
@@ -49,7 +64,8 @@ def handle_message(msg):
             return
 
         elif text == 'شروع ربات':
-            send_message(chat_id, '✅ مسابقه آغاز شد.')
+            awaiting_competition_days = True
+            send_message(chat_id, 'لطفا تعداد روزهای مسابقه را به عدد وارد کنید.')
             return
 
         elif text == '3 نفر برتر واقعی':
@@ -66,10 +82,27 @@ def handle_message(msg):
     if text == 'دعوت دوستان💰':
         joined, left, score = get_stats(user_id)
         link = f'https://t.me/{BOT_USERNAME}?start={user_id}'
+
+        comp = get_competition()
+        if comp and comp['start_time']:
+            now = datetime.utcnow()
+            end_time = comp['start_time'] + timedelta(days=comp['duration_days'])
+            if now > end_time:
+                time_left_text = "⏳ پایان مهلت مسابقه."
+            else:
+                remaining = end_time - now
+                days_left = remaining.days
+                hrs = remaining.seconds // 3600
+                mins = (remaining.seconds % 3600) // 60
+                time_left_text = f"⏳ پایان مهلت تا {days_left} روز و {hrs} ساعت و {mins} دقیقه"
+        else:
+            time_left_text = "⏳ مسابقه فعالی نیست."
+
         send_message(chat_id,
             f'🔰 تعداد کسانی که دعوت کردید = {joined}\n'
             f'🔰 کسانی که لفت دادن = {left}\n'
             f'🔰 مجموع امتیاز = {score}\n\n'
+            f'{time_left_text}\n\n'
             f'کد دعوت شما 👇\n{link}',
             reply_markup=btn_back()
         )
