@@ -59,3 +59,34 @@ def get_top_inviters(limit=10):
         stats[uid] = stats.get(uid, 0) + 1
     sorted_stats = sorted(stats.items(), key=lambda x: -x[1])[:limit]
     return sorted_stats
+# ادامه فایل database.py
+
+# ساخت جدول مسابقه برای ذخیره زمان شروع و مدت مسابقه (روز)
+c.execute('''
+CREATE TABLE IF NOT EXISTS competition (
+    id INTEGER PRIMARY KEY,
+    start_time TEXT,
+    duration_days INTEGER
+)
+''')
+conn.commit()
+
+def set_competition(start_time, duration_days):
+    # حذف رکورد قبلی (اگر بود) و اضافه کردن رکورد جدید
+    c.execute('DELETE FROM competition')
+    c.execute('INSERT INTO competition (start_time, duration_days) VALUES (?, ?)',
+              (start_time.isoformat(), duration_days))
+    conn.commit()
+
+def get_competition():
+    c.execute('SELECT start_time, duration_days FROM competition ORDER BY id DESC LIMIT 1')
+    row = c.fetchone()
+    if row:
+        start_time_str, duration_days = row
+        try:
+            start_time = datetime.fromisoformat(start_time_str)
+        except Exception:
+            start_time = None
+        return {'start_time': start_time, 'duration_days': duration_days}
+    else:
+        return None
