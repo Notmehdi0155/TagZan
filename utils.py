@@ -1,6 +1,6 @@
 import requests
 from config import BOT_TOKEN, REQUIRED_CHANNELS, PING_URL, PING_INTERVAL
-from database import update_left
+from database import update_left, update_joined, get_left_warned, set_left_warned
 import time
 
 API_URL = f'https://api.telegram.org/bot{BOT_TOKEN}'
@@ -16,7 +16,6 @@ def send_message(chat_id, text, reply_markup=None):
     requests.post(f'{API_URL}/sendMessage', json=payload)
 
 def delete_message(chat_id, message_id):
-    # حذف پیام در چت مشخص
     requests.post(f'{API_URL}/deleteMessage', json={'chat_id': chat_id, 'message_id': message_id})
 
 def is_subscribed(user_id):
@@ -35,12 +34,24 @@ def ping_loop():
         except:
             pass
 
-        # چک عضویت کاربران و ارسال اخطار در صورت لفت
         for (uid,) in get_all_joined_users():
             if not is_subscribed(uid):
-                update_left(uid)
-                send_message(uid,
-                    '⚠️ شما از کانال رفت دادید.\n'
-                    'اگر قصد دارید در فرآیند قرعه‌کشی حضور داشته باشید لطفاً در کانال‌ها عضو بمانید👇💯'
-                )
+                if get_left_warned(uid) == 0:
+                    update_left(uid)
+                    send_message(uid,
+                        '⚠️ شما از کانال رفت دادید.\n'
+                        'اگر قصد دارید در فرآیند قرعه‌کشی حضور داشته باشید لطفاً در کانال‌ها عضو بمانید👇💯',
+                        reply_markup={
+                            'inline_keyboard': [
+                                [{'text': 'عضویت مجدد در HotTof', 'url': 'https://t.me/hottof'}],
+                                [{'text': 'عضویت مجدد در هات اسپات', 'url': 'https://t.me/Hottspots'}]
+                            ]
+                        }
+                    )
+                    set_left_warned(uid, 1)
+            else:
+                # اگر دوباره عضو شد، ریست وضعیت و آپدیت
+                set_left_warned(uid, 0)
+                update_joined(uid)
+
         time.sleep(PING_INTERVAL)
