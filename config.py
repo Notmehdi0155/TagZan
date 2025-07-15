@@ -1,19 +1,14 @@
-# config.py
+TOKEN = "توکن رباتت"
+BOT_USERNAME = "ربات_توبدون_@"  # مثل: "my_uploader_bot"
 
-# توکن ربات از BotFather
-TOKEN = "YOUR_BOT_TOKEN"
-
-# لیست آیدی عددی ادمین‌ها
+# آیدی عددی ادمین‌ها (میتونه چندتا باشه)
 ADMIN_IDS = [123456789, 987654321]
 
-# کانالی که کاربران باید عضو آن باشند (برای عضویت اجباری)
-FORCE_SUB_CHANNEL = "@your_join_channel"
+# عضویت اجباری اصلی (ثابت)
+MAIN_FORCE_SUB_CHANNEL = "@channel_username"
 
-# کانالی که فایل‌ها برای نگهداری در آن فوروارد می‌شوند (مخفی باشد بهتره)
-STORAGE_CHANNEL = "@your_storage_channel"
+# کانال ذخیره فایل‌ها (باید ربات ادمین باشه)
+STORAGE_CHANNEL = "@storage_channel"
 
-# یوزرنیم ربات بدون @ (برای ساخت لینک دریافت)
-BOT_USERNAME = "YourUploaderBot"
-
-# آدرس کامل Webhook که روی Render تنظیم می‌کنی
-WEBHOOK_URL = "https://your-uploader-bot.onrender.com"
+# لینک کامل سرور رندر
+WEBHOOK_URL = "https://your-app-name.onrender.com"
