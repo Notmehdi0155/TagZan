@@ -1,12 +1,13 @@
-# bot.py - نسخه پیشرفته با عضویت اجباری چندکاناله
+# bot.py - نسخه حرفه‌ای با عضویت اجباری چندکاناله و webhook
 
 import logging
 import sqlite3
 from uuid import uuid4
+import asyncio
 
 from telegram import (
     Update, InlineKeyboardMarkup, InlineKeyboardButton,
-    ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+    ReplyKeyboardMarkup, KeyboardButton
 )
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler, filters,
@@ -14,7 +15,7 @@ from telegram.ext import (
 )
 import config
 
-# ----- تنظیمات لاگ -----
+# ----- تنظیم لاگ -----
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -35,12 +36,12 @@ conn.commit()
 # ----- وضعیت کاربران -----
 STATE = {}
 
-# گرفتن لیست کانال‌های عضویت اجباری
+# لیست کانال‌های عضویت اجباری
 def get_force_channels():
     rows = c.execute("SELECT username FROM force_channels").fetchall()
     return [row[0] for row in rows]
 
-# بررسی عضویت در همه کانال‌ها
+# بررسی عضویت
 async def check_membership(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
     channels = [config.MAIN_FORCE_SUB_CHANNEL] + get_force_channels()
     for ch in channels:
@@ -162,7 +163,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ کانال {username} حذف شد.")
         STATE.pop(user_id)
 
-# فایل‌ها
+# مدیریت فایل ارسالی
 async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id not in config.ADMIN_IDS or STATE.get(user_id) != "awaiting_file":
@@ -175,7 +176,18 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     caption = update.message.caption or ""
     forwarded = await context.bot.forward_message(chat_id=config.STORAGE_CHANNEL, from_chat_id=update.effective_chat.id, message_id=update.message.message_id)
-    file_id = forwarded.document.file_id if forwarded.document else forwarded.video.file_id if forwarded.video else None
+    file_id = (
+        forwarded.document.file_id if forwarded.document else
+        forwarded.video.file_id if forwarded.video else
+        forwarded.photo[-1].file_id if forwarded.photo else
+        forwarded.audio.file_id if forwarded.audio else
+        None
+    )
+
+    if not file_id:
+        await update.message.reply_text("❌ خطا در دریافت فایل.")
+        return
+
     unique_id = str(uuid4())[:8]
     c.execute("INSERT INTO files (file_id, unique_id, caption) VALUES (?, ?, ?)", (file_id, unique_id, caption))
     conn.commit()
@@ -185,8 +197,8 @@ async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await panel(update, context)
     STATE.pop(user_id)
 
-# اجرای Webhook
-if __name__ == "__main__":
+# اجرای کامل با webhook
+async def main():
     app = ApplicationBuilder().token(config.TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
@@ -195,15 +207,14 @@ if __name__ == "__main__":
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
     app.add_handler(MessageHandler(filters.Document.ALL | filters.Video.ALL | filters.Photo.ALL | filters.Audio.ALL, file_handler))
 
-    async def setup_webhook():
-        await app.bot.set_webhook(url=config.WEBHOOK_URL)
+    await app.bot.set_webhook(url=config.WEBHOOK_URL)
 
-    app.run_webhook(
+    await app.run_webhook(
         listen="0.0.0.0",
         port=8080,
         webhook_path="",
-        on_startup=setup_webhook,
-        allowed_updates=Update.ALL_TYPES,
-        stop_signals=None,
-            )
-    
+        allowed_updates=Update.ALL_TYPES
+    )
+
+if __name__ == "__main__":
+    asyncio.run(main())
