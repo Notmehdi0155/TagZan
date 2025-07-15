@@ -37,7 +37,7 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS files (
 )''')
 
 cursor.execute('''CREATE TABLE IF NOT EXISTS user_links (
-    user_id INTEGER PRIMARY KEY,
+    user_id INTEGER,
     uid TEXT
 )''')
 
@@ -85,9 +85,9 @@ async def handle_done_uploading(msg: types.Message, state: FSMContext):
     cursor.execute("INSERT OR REPLACE INTO user_links (user_id, uid) VALUES (?, ?)", (msg.from_user.id, uid))
     conn.commit()
     await state.finish()
-bot_info = await bot.get_me()
-bot_link = f"https://t.me/{bot_info.username}?start={uid}"
-await msg.answer(f"✅ لینک اختصاصی فایل‌ها:\n{bot_link}")
+    bot_info = await bot.get_me()
+    bot_link = f"https://t.me/{bot_info.username}?start={uid}"
+    await msg.answer(f"✅ لینک اختصاصی فایل‌ها:\n{bot_link}")
 
 @dp.message_handler(content_types=types.ContentType.ANY, state=UploadFiles.waiting_files, user_id=ADMIN_IDS)
 async def save_file(msg: types.Message):
@@ -202,7 +202,7 @@ async def send_files_to_user(user_id, uid):
         except:
             pass
     await bot.send_message(user_id, "⚠️ این فایل‌ها پس از ۱۲۰ ثانیه حذف خواهند شد! ⏳")
-    cursor.execute("INSERT OR REPLACE INTO user_links (user_id, uid) VALUES (?, ?)", (user_id, uid))
+    cursor.execute("INSERT INTO user_links (user_id, uid) VALUES (?, ?)", (user_id, uid))
     conn.commit()
 
 async def on_startup(dp):
@@ -223,4 +223,3 @@ if __name__ == '__main__':
         host=WEBAPP_HOST,
         port=WEBAPP_PORT
     )
-    
