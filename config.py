@@ -1,17 +1,19 @@
 # config.py
 
-# توکن ربات
-BOT_TOKEN = '7585562804:AAGvPbNkgpVvMyBEttrsUTuc279H3Gs6bJI'
-BOT_USERNAME = 'Davat_HotBot'
+# توکن ربات از BotFather
+TOKEN = "YOUR_BOT_TOKEN"
 
-# کانال‌هایی که عضویت اجباری دارن
-REQUIRED_CHANNELS = ['@hottof', '@Hottspots']
+# لیست آیدی عددی ادمین‌ها
+ADMIN_IDS = [123456789, 987654321]
 
-# آیدی عددی ادمین
-ADMIN_ID = 6387942633
+# کانالی که کاربران باید عضو آن باشند (برای عضویت اجباری)
+FORCE_SUB_CHANNEL = "@your_join_channel"
 
-# لینک سرور برای پینگ (برای جلوگیری از خاموشی Render)
-PING_URL = 'https://tagzan.onrender.com'
+# کانالی که فایل‌ها برای نگهداری در آن فوروارد می‌شوند (مخفی باشد بهتره)
+STORAGE_CHANNEL = "@your_storage_channel"
 
-# مدت زمان چک لفت دادن بر حسب ثانیه
-PING_INTERVAL = 1
+# یوزرنیم ربات بدون @ (برای ساخت لینک دریافت)
+BOT_USERNAME = "YourUploaderBot"
+
+# آدرس کامل Webhook که روی Render تنظیم می‌کنی
+WEBHOOK_URL = "https://your-uploader-bot.onrender.com"
