@@ -1,220 +1,194 @@
-# bot.py - نسخه حرفه‌ای با عضویت اجباری چندکاناله و webhook
-
 import logging
-import sqlite3
-from uuid import uuid4
+import uuid
 import asyncio
+from aiogram import Bot, Dispatcher, types
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.utils.executor import start_webhook
+from aiogram.dispatcher import FSMContext
+from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.dispatcher.filters.state import State, StatesGroup
+from aiogram.dispatcher.filters import Command
+from aiogram.utils.exceptions import MessageCantBeDeleted
 
-from telegram import (
-    Update, InlineKeyboardMarkup, InlineKeyboardButton,
-    ReplyKeyboardMarkup, KeyboardButton
-)
-from telegram.ext import (
-    ApplicationBuilder, CommandHandler, MessageHandler, filters,
-    CallbackQueryHandler, ContextTypes
-)
-import config
+API_TOKEN = '7301497411:AAG_Ku0lXkAzOhGQB021bpwxGDz0YqwkJhE'
+WEBHOOK_HOST = 'https://tagzan.onrender.com'
+WEBHOOK_PATH = '/'
+WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
-# ----- تنظیم لاگ -----
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+WEBAPP_HOST = '0.0.0.0'
+WEBAPP_PORT = 10000
 
-# ----- دیتابیس -----
-conn = sqlite3.connect("database.db", check_same_thread=False)
-c = conn.cursor()
-c.execute('''CREATE TABLE IF NOT EXISTS files (
-    file_id TEXT,
-    unique_id TEXT PRIMARY KEY,
-    caption TEXT,
-    downloads INTEGER DEFAULT 0
-)''')
-c.execute('''CREATE TABLE IF NOT EXISTS force_channels (
-    username TEXT PRIMARY KEY
-)''')
-conn.commit()
+ADMIN_IDS = [6039863213, 6387942633]
+REQUIRED_CHANNELS = [
+    'https://t.me/zistkonkoordarvizist',
+    'https://t.me/azmoon_jozveh'
+]
+DB_CHANNEL = '@file_database_channel'  # کانال دیتابیس با ادمین بودن ربات
 
-# ----- وضعیت کاربران -----
-STATE = {}
+bot = Bot(token=API_TOKEN)
+dp = Dispatcher(bot, storage=MemoryStorage())
 
-# لیست کانال‌های عضویت اجباری
-def get_force_channels():
-    rows = c.execute("SELECT username FROM force_channels").fetchall()
-    return [row[0] for row in rows]
+user_links = {}
+file_links = {}
+channel_list = set(REQUIRED_CHANNELS)
+user_files = {}
 
-# بررسی عضویت
-async def check_membership(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    channels = [config.MAIN_FORCE_SUB_CHANNEL] + get_force_channels()
-    for ch in channels:
+class UploadFiles(StatesGroup):
+    waiting_files = State()
+
+class Broadcast(StatesGroup):
+    waiting_message = State()
+
+def get_admin_panel():
+    return ReplyKeyboardMarkup(resize_keyboard=True).add(
+        KeyboardButton("اپلود"),
+        KeyboardButton("ارسال همگانی"),
+        KeyboardButton("تنظیم کانال"),
+        KeyboardButton("آمار")
+    )
+
+@dp.message_handler(commands=['start', 'panel'])
+async def send_panel(msg: types.Message):
+    if msg.from_user.id in ADMIN_IDS:
+        await msg.answer("به پنل ادمین خوش آمدید:", reply_markup=get_admin_panel())
+
+@dp.message_handler(lambda m: m.text == 'اپلود', user_id=ADMIN_IDS)
+async def handle_upload(msg: types.Message, state: FSMContext):
+    await msg.answer("فایل‌های خود را ارسال کنید. پس از اتمام، روی 'برگشت' بزنید.")
+    await UploadFiles.waiting_files.set()
+    user_files[msg.from_user.id] = []
+
+@dp.message_handler(lambda m: m.text == 'برگشت', state=UploadFiles.waiting_files, user_id=ADMIN_IDS)
+async def handle_done_uploading(msg: types.Message, state: FSMContext):
+    files = user_files.get(msg.from_user.id, [])
+    if not files:
+        await msg.answer("هیچ فایلی ارسال نشده است.")
+        return
+    uid = str(uuid.uuid4())
+    file_links[uid] = files
+    user_links[msg.from_user.id] = uid
+    await state.finish()
+    await msg.answer(f"✅ لینک اختصاصی فایل‌ها:\nhttps://t.me/{(await bot.get_me()).username}?start={uid}")
+
+@dp.message_handler(content_types=types.ContentType.ANY, state=UploadFiles.waiting_files, user_id=ADMIN_IDS)
+async def save_file(msg: types.Message):
+    sent = await bot.copy_message(DB_CHANNEL, msg.chat.id, msg.message_id)
+    user_files[msg.from_user.id].append(sent.message_id)
+
+@dp.message_handler(lambda m: m.text == 'ارسال همگانی', user_id=ADMIN_IDS)
+async def ask_broadcast(msg: types.Message):
+    await msg.answer("پیامی که می‌خواهید ارسال شود را بنویسید.")
+    await Broadcast.waiting_message.set()
+
+@dp.message_handler(state=Broadcast.waiting_message, content_types=types.ContentType.ANY, user_id=ADMIN_IDS)
+async def do_broadcast(msg: types.Message, state: FSMContext):
+    await state.finish()
+    count = 0
+    for user_id in user_links:
         try:
-            member = await context.bot.get_chat_member(ch, user_id)
-            if member.status not in ["member", "administrator", "creator"]:
-                return False
+            await bot.copy_message(user_id, msg.chat.id, msg.message_id)
+            count += 1
         except:
-            return False
-    return True
+            continue
+    await msg.answer(f"پیام برای {count} نفر ارسال شد.")
 
-# /start
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    args = context.args
-    user_id = update.effective_user.id
+@dp.message_handler(lambda m: m.text == 'تنظیم کانال', user_id=ADMIN_IDS)
+async def manage_channels(msg: types.Message):
+    await msg.answer("لینک کانال را برای اضافه/حذف بفرستید:")
 
-    if args and args[0].startswith("file_"):
-        unique_id = args[0].split("_", 1)[1]
-
-        if not await check_membership(user_id, context):
-            btn = InlineKeyboardMarkup([[InlineKeyboardButton("عضو شدم ✅", callback_data=f"checksub_{unique_id}")]])
-            await update.message.reply_text("برای دریافت فایل باید ابتدا در کانال‌های زیر عضو شوید:", reply_markup=btn)
-            return
-
-        file = c.execute("SELECT * FROM files WHERE unique_id=?", (unique_id,)).fetchone()
-        if file:
-            file_id, _, caption, downloads = file
-            new_count = downloads + 1
-            c.execute("UPDATE files SET downloads=? WHERE unique_id=?", (new_count, unique_id))
-            conn.commit()
-
-            btn = InlineKeyboardMarkup([[InlineKeyboardButton(f"📥 دریافت: {new_count} بار", url="https://t.me/"+config.BOT_USERNAME)]])
-            await context.bot.send_document(chat_id=update.effective_chat.id, document=file_id, caption=caption, reply_markup=btn)
+@dp.message_handler(lambda m: m.text.startswith('https://t.me/'), user_id=ADMIN_IDS)
+async def add_or_remove_channel(msg: types.Message):
+    link = msg.text.strip()
+    if link in channel_list:
+        channel_list.remove(link)
+        await msg.answer("کانال حذف شد ✅")
     else:
-        await update.message.reply_text("سلام! برای دریافت فایل از لینک‌های اختصاصی استفاده کن.")
+        channel_list.add(link)
+        await msg.answer("کانال اضافه شد ✅")
 
-# دکمه بررسی عضویت
-async def checksub_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    user_id = query.from_user.id
-    _, unique_id = query.data.split("_", 1)
-    await query.answer()
+@dp.message_handler(lambda m: m.text == 'آمار', user_id=ADMIN_IDS)
+async def ask_for_stat_link(msg: types.Message):
+    await msg.answer("لینک اختصاصی فایل‌ها را بفرستید:")
 
-    if await check_membership(user_id, context):
-        file = c.execute("SELECT * FROM files WHERE unique_id=?", (unique_id,)).fetchone()
-        if file:
-            file_id, _, caption, downloads = file
-            new_count = downloads + 1
-            c.execute("UPDATE files SET downloads=? WHERE unique_id=?", (new_count, unique_id))
-            conn.commit()
-
-            btn = InlineKeyboardMarkup([[InlineKeyboardButton(f"📥 دریافت: {new_count} بار", url="https://t.me/"+config.BOT_USERNAME)]])
-            await context.bot.send_document(chat_id=query.message.chat_id, document=file_id, caption=caption, reply_markup=btn)
-            await query.message.delete()
-    else:
-        await query.answer("هنوز عضو نشدی!", show_alert=True)
-
-# /panel
-async def panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id not in config.ADMIN_IDS:
+@dp.message_handler(lambda m: m.text.startswith("https://t.me/"), user_id=ADMIN_IDS)
+async def show_stats(msg: types.Message):
+    if 'start=' not in msg.text:
+        await msg.answer("لینک معتبر نیست.")
         return
+    uid = msg.text.split("start=")[-1]
+    count = len([u for u, l in user_links.items() if l == uid])
+    await msg.answer(f"تعداد ارسال این فایل: {count} بار")
 
-    btns = ReplyKeyboardMarkup([
-        ["📤 آپلود فایل", "📊 آمار"],
-        ["➕ افزودن کانال اجباری", "➖ حذف کانال اجباری"],
-        ["📋 لیست کانال‌های اجباری"]
-    ], resize_keyboard=True)
-    await update.message.reply_text("پنل مدیریت باز شد:", reply_markup=btns)
-
-# پیام‌های ادمین
-async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    user_id = update.effective_user.id
-
-    if user_id not in config.ADMIN_IDS:
-        return
-
-    if text == "📤 آپلود فایل":
-        STATE[user_id] = "awaiting_file"
-        await update.message.reply_text("فایل را بفرستید.", reply_markup=ReplyKeyboardMarkup([["🔙 بازگشت"]], resize_keyboard=True))
-
-    elif text == "📊 آمار":
-        count = c.execute("SELECT COUNT(*) FROM files").fetchone()[0]
-        total = c.execute("SELECT SUM(downloads) FROM files").fetchone()[0] or 0
-        await update.message.reply_text(f"📁 فایل‌ها: {count}\n📥 مجموع دریافت‌ها: {total}")
-
-    elif text == "➕ افزودن کانال اجباری":
-        STATE[user_id] = "add_channel"
-        await update.message.reply_text("یوزرنیم کانال (با @) را وارد کنید:")
-
-    elif text == "➖ حذف کانال اجباری":
-        STATE[user_id] = "remove_channel"
-        await update.message.reply_text("یوزرنیم کانال برای حذف:")
-
-    elif text == "📋 لیست کانال‌های اجباری":
-        channels = get_force_channels()
-        msg = "📌 کانال‌ها:\n" + "\n".join(channels) if channels else "⚠️ کانالی تنظیم نشده."
-        await update.message.reply_text(msg)
-
-    elif text == "🔙 بازگشت":
-        STATE.pop(user_id, None)
-        await panel(update, context)
-
-    elif STATE.get(user_id) == "add_channel":
-        username = text.strip()
+async def check_subscription(user_id):
+    not_joined = []
+    for link in channel_list:
         try:
-            c.execute("INSERT INTO force_channels (username) VALUES (?)", (username,))
-            conn.commit()
-            await update.message.reply_text(f"✅ کانال {username} اضافه شد.")
-        except sqlite3.IntegrityError:
-            await update.message.reply_text("⚠️ این کانال قبلاً اضافه شده.")
-        STATE.pop(user_id)
+            username = link.split('/')[-1]
+            member = await bot.get_chat_member(username, user_id)
+            if member.status not in ['member', 'creator', 'administrator']:
+                not_joined.append(link)
+        except:
+            not_joined.append(link)
+    return not_joined
 
-    elif STATE.get(user_id) == "remove_channel":
-        username = text.strip()
-        c.execute("DELETE FROM force_channels WHERE username = ?", (username,))
-        conn.commit()
-        await update.message.reply_text(f"❌ کانال {username} حذف شد.")
-        STATE.pop(user_id)
-
-# مدیریت فایل ارسالی
-async def file_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if user_id not in config.ADMIN_IDS or STATE.get(user_id) != "awaiting_file":
+@dp.message_handler(commands=['start'])
+async def handle_start(msg: types.Message):
+    if ' ' not in msg.text:
         return
-
-    doc = update.message.document or update.message.video or update.message.photo or update.message.audio
-    if not doc:
-        await update.message.reply_text("فایل معتبر نیست.")
+    uid = msg.text.split()[1]
+    if uid not in file_links:
+        await msg.answer("لینک معتبر نیست یا فایل‌ها منقضی شده‌اند.")
         return
+    not_joined = await check_subscription(msg.from_user.id)
+    if not_joined:
+        buttons = [
+            [InlineKeyboardButton(text=link.split('/')[-1], url=link)] for link in not_joined
+        ]
+        buttons.append([InlineKeyboardButton(text='تایید عضویت ✅', callback_data=f'check:{uid}')])
+        await msg.answer("برای دریافت فایل‌ها ابتدا در کانال‌های زیر عضو شوید:", reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
+    else:
+        await send_files_to_user(msg.from_user.id, uid)
 
-    caption = update.message.caption or ""
-    forwarded = await context.bot.forward_message(chat_id=config.STORAGE_CHANNEL, from_chat_id=update.effective_chat.id, message_id=update.message.message_id)
-    file_id = (
-        forwarded.document.file_id if forwarded.document else
-        forwarded.video.file_id if forwarded.video else
-        forwarded.photo[-1].file_id if forwarded.photo else
-        forwarded.audio.file_id if forwarded.audio else
-        None
+@dp.callback_query_handler(lambda c: c.data.startswith('check:'))
+async def handle_check_subscription(call: types.CallbackQuery):
+    uid = call.data.split(':')[1]
+    not_joined = await check_subscription(call.from_user.id)
+    try:
+        await call.message.delete()
+    except MessageCantBeDeleted:
+        pass
+    if not not_joined:
+        await send_files_to_user(call.from_user.id, uid)
+    else:
+        buttons = [
+            [InlineKeyboardButton(text=link.split('/')[-1], url=link)] for link in not_joined
+        ]
+        buttons.append([InlineKeyboardButton(text='تایید عضویت ✅', callback_data=f'check:{uid}')])
+        await bot.send_message(call.from_user.id, "هنوز عضو همه کانال‌ها نشده‌اید:", reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
+
+async def send_files_to_user(user_id, uid):
+    for msg_id in file_links.get(uid, []):
+        try:
+            await bot.copy_message(user_id, DB_CHANNEL, msg_id)
+        except:
+            pass
+    await bot.send_message(user_id, "⚠️ این فایل‌ها پس از ۱۲۰ ثانیه حذف خواهند شد! ⏳")
+    user_links[user_id] = uid
+
+async def on_startup(dp):
+    await bot.set_webhook(WEBHOOK_URL)
+
+async def on_shutdown(dp):
+    await bot.delete_webhook()
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+    start_webhook(
+        dispatcher=dp,
+        webhook_path=WEBHOOK_PATH,
+        on_startup=on_startup,
+        on_shutdown=on_shutdown,
+        skip_updates=True,
+        host=WEBAPP_HOST,
+        port=WEBAPP_PORT
     )
-
-    if not file_id:
-        await update.message.reply_text("❌ خطا در دریافت فایل.")
-        return
-
-    unique_id = str(uuid4())[:8]
-    c.execute("INSERT INTO files (file_id, unique_id, caption) VALUES (?, ?, ?)", (file_id, unique_id, caption))
-    conn.commit()
-
-    link = f"https://t.me/{config.BOT_USERNAME}?start=file_{unique_id}"
-    await update.message.reply_text(f"✅ فایل ذخیره شد\n🔗 لینک: {link}")
-    await panel(update, context)
-    STATE.pop(user_id)
-
-# اجرای کامل با webhook
-async def main():
-    app = ApplicationBuilder().token(config.TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("panel", panel))
-    app.add_handler(CallbackQueryHandler(checksub_callback, pattern="checksub_.*"))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
-    app.add_handler(MessageHandler(filters.Document.ALL | filters.Video.ALL | filters.Photo.ALL | filters.Audio.ALL, file_handler))
-
-    await app.bot.set_webhook(url=config.WEBHOOK_URL)
-
-    await app.run_webhook(
-        listen="0.0.0.0",
-        port=8080,
-        webhook_path="",
-        allowed_updates=Update.ALL_TYPES
-    )
-
-if __name__ == "__main__":
-    asyncio.run(main())
