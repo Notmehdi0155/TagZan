@@ -85,7 +85,8 @@ async def handle_done_uploading(msg: types.Message, state: FSMContext):
     cursor.execute("INSERT OR REPLACE INTO user_links (user_id, uid) VALUES (?, ?)", (msg.from_user.id, uid))
     conn.commit()
     await state.finish()
-bot_link = f"https://t.me/{(await bot.get_me()).username}?start={uid}"
+bot_info = await bot.get_me()
+bot_link = f"https://t.me/{bot_info.username}?start={uid}"
 await msg.answer(f"✅ لینک اختصاصی فایل‌ها:\n{bot_link}")
 
 @dp.message_handler(content_types=types.ContentType.ANY, state=UploadFiles.waiting_files, user_id=ADMIN_IDS)
