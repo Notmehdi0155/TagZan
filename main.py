@@ -23,7 +23,7 @@ REQUIRED_CHANNELS = [
     'https://t.me/zistkonkoordarvizist',
     'https://t.me/azmoon_jozveh'
 ]
-DB_CHANNEL = '@file_database_channel'
+DB_CHANNEL = '@datajozve'
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(bot, storage=MemoryStorage())
