@@ -1,10 +1,12 @@
 import sqlite3
 
-# اتصال به دیتابیس و ساخت جدول‌ها در صورت نبود
+# اتصال به دیتابیس (فایل در کنار پروژه ایجاد می‌شود)
 conn = sqlite3.connect("videos.db", check_same_thread=False)
 cur = conn.cursor()
 
-# جدول ویدیوها (برای لینک‌های تولید شده و فایل‌ها)
+# ---------- ساخت جدول‌ها در صورت نبود ----------
+
+# جدول ویدیوها (کد اختصاصی → file_id)
 cur.execute("""
 CREATE TABLE IF NOT EXISTS videos (
     code TEXT PRIMARY KEY,
@@ -12,7 +14,7 @@ CREATE TABLE IF NOT EXISTS videos (
 )
 """)
 
-# جدول لینک‌های عضویت اجباری
+# جدول کانال‌های عضویت اجباری
 cur.execute("""
 CREATE TABLE IF NOT EXISTS forced_channels (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -22,44 +24,52 @@ CREATE TABLE IF NOT EXISTS forced_channels (
 
 conn.commit()
 
-# ذخیره فایل و کد اختصاصی
+# ---------- مدیریت فایل‌ها ----------
+
 def save_file(file_id, code):
-    print(f"Saving file_id: {file_id} with code: {code}")
-    cur.execute("INSERT OR REPLACE INTO videos (code, file_id) VALUES (?, ?)", (code, file_id))
-    conn.commit()
+    """ذخیره یک فایل با کد اختصاصی در جدول ویدیوها"""
+    try:
+        cur.execute("INSERT OR REPLACE INTO videos (code, file_id) VALUES (?, ?)", (code, file_id))
+        conn.commit()
+        print(f"[+] فایل ذخیره شد: {code}")
+    except Exception as e:
+        print("[!] خطا در ذخیره فایل:", e)
 
-# دریافت فایل با کد اختصاصی
 def get_file(code):
-    print(f"Getting file for code: {code}")
-    cur.execute("SELECT file_id FROM videos WHERE code = ?", (code,))
-    row = cur.fetchone()
-    if row:
-        print(f"Found file_id: {row[0]} for code: {code}")
-    else:
-        print(f"No file found for code: {code}")
-    return row[0] if row else None
+    """دریافت file_id با استفاده از کد اختصاصی"""
+    try:
+        cur.execute("SELECT file_id FROM videos WHERE code = ?", (code,))
+        row = cur.fetchone()
+        return row[0] if row else None
+    except Exception as e:
+        print("[!] خطا در دریافت فایل:", e)
+        return None
 
-# افزودن لینک عضویت اجباری
-def add_forced_channel(link):
+# ---------- مدیریت کانال‌های عضویت اجباری ----------
+
+def add_channel(link):
+    """افزودن لینک کانال به لیست عضویت اجباری"""
     try:
         cur.execute("INSERT OR IGNORE INTO forced_channels (link) VALUES (?)", (link,))
         conn.commit()
-        return True
+        print(f"[+] کانال اضافه شد: {link}")
     except Exception as e:
-        print("Error adding channel:", e)
-        return False
+        print("[!] خطا در افزودن کانال:", e)
 
-# حذف لینک عضویت اجباری
-def remove_forced_channel(link):
+def remove_channel(link):
+    """حذف لینک کانال از لیست عضویت اجباری"""
     try:
         cur.execute("DELETE FROM forced_channels WHERE link = ?", (link,))
         conn.commit()
-        return True
+        print(f"[-] کانال حذف شد: {link}")
     except Exception as e:
-        print("Error removing channel:", e)
-        return False
+        print("[!] خطا در حذف کانال:", e)
 
-# دریافت همه لینک‌های عضویت اجباری
-def get_forced_channels():
-    cur.execute("SELECT link FROM forced_channels")
-    return [row[0] for row in cur.fetchall()]
+def get_channels():
+    """دریافت همه لینک‌های ثبت شده کانال‌های عضویت اجباری"""
+    try:
+        cur.execute("SELECT link FROM forced_channels")
+        return [row[0] for row in cur.fetchall()]
+    except Exception as e:
+        print("[!] خطا در دریافت لیست کانال‌ها:", e)
+        return []
