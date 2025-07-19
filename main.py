@@ -154,7 +154,7 @@ def webhook():
             cover_id = msg["photo"][-1]["file_id"]
             code = gen_code()
             save_file(file_id, code)
-            link = f"<a href='https://t.me/HotTofBot?start={code}'>مشاهده</a>\n\n{CHANNEL_TAG}"
+            link = f"<a href='https://t.me/Up_jozve_bot?start={code}'>مشاهده</a>\n\n{CHANNEL_TAG}"
             send("sendPhoto", {
                 "chat_id": cid,
                 "photo": cover_id,
