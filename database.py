@@ -6,10 +6,11 @@ cur = conn.cursor()
 
 # ---------- ساخت جدول‌ها در صورت نبود ----------
 
-# جدول ویدیوها (کد اختصاصی → file_id)
+# جدول فایل‌ها (کد اختصاصی → لیست فایل‌ها)
 cur.execute("""
-CREATE TABLE IF NOT EXISTS videos (
-    code TEXT PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS video_files (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT NOT NULL,
     file_id TEXT NOT NULL
 )
 """)
@@ -31,72 +32,64 @@ CREATE TABLE IF NOT EXISTS users (
 
 conn.commit()
 
-# ---------- مدیریت فایل‌ها ----------
+# ---------- مدیریت فایل‌ها (چندتایی) ----------
 
-def save_file(file_id, code):
-    """ذخیره یک فایل با کد اختصاصی در جدول ویدیوها"""
+def save_files(file_ids, code):
+    """ذخیره چند فایل برای یک کد"""
     try:
-        cur.execute("INSERT OR REPLACE INTO videos (code, file_id) VALUES (?, ?)", (code, file_id))
+        for fid in file_ids:
+            cur.execute("INSERT INTO video_files (code, file_id) VALUES (?, ?)", (code, fid))
         conn.commit()
-        print(f"[+] فایل ذخیره شد: {code}")
+        print(f"[+] {len(file_ids)} فایل برای کد {code} ذخیره شد")
     except Exception as e:
-        print("[!] خطا در ذخیره فایل:", e)
+        print("[!] خطا در ذخیره فایل‌ها:", e)
 
-def get_file(code):
-    """دریافت file_id با استفاده از کد اختصاصی"""
+def get_files(code):
+    """دریافت همه فایل‌های مرتبط با کد"""
     try:
-        cur.execute("SELECT file_id FROM videos WHERE code = ?", (code,))
-        row = cur.fetchone()
-        return row[0] if row else None
+        cur.execute("SELECT file_id FROM video_files WHERE code = ?", (code,))
+        return [row[0] for row in cur.fetchall()]
     except Exception as e:
-        print("[!] خطا در دریافت فایل:", e)
-        return None
+        print("[!] خطا در دریافت فایل‌ها:", e)
+        return []
 
 # ---------- مدیریت کانال‌های عضویت اجباری ----------
 
 def add_channel(link):
-    """افزودن لینک کانال به لیست عضویت اجباری"""
     try:
         cur.execute("INSERT OR IGNORE INTO forced_channels (link) VALUES (?)", (link,))
         conn.commit()
-        print(f"[+] کانال اضافه شد: {link}")
     except Exception as e:
         print("[!] خطا در افزودن کانال:", e)
 
 def remove_channel(link):
-    """حذف لینک کانال از لیست عضویت اجباری"""
     try:
         cur.execute("DELETE FROM forced_channels WHERE link = ?", (link,))
         conn.commit()
-        print(f"[-] کانال حذف شد: {link}")
     except Exception as e:
         print("[!] خطا در حذف کانال:", e)
 
 def get_channels():
-    """دریافت همه لینک‌های ثبت شده کانال‌های عضویت اجباری"""
     try:
         cur.execute("SELECT link FROM forced_channels")
         return [row[0] for row in cur.fetchall()]
     except Exception as e:
-        print("[!] خطا در دریافت لیست کانال‌ها:", e)
+        print("[!] خطا در دریافت کانال‌ها:", e)
         return []
 
-# ---------- مدیریت کاربران برای ارسال همگانی ----------
+# ---------- مدیریت کاربران ----------
 
 def save_user_id(user_id):
-    """ذخیره آیدی کاربر برای ارسال همگانی"""
     try:
         cur.execute("INSERT OR IGNORE INTO users (id) VALUES (?)", (user_id,))
         conn.commit()
-        print(f"[+] کاربر ذخیره شد: {user_id}")
     except Exception as e:
-        print("[!] خطا در ذخیره آیدی:", e)
+        print("[!] خطا در ذخیره کاربر:", e)
 
 def get_all_user_ids():
-    """دریافت همه آیدی‌های ثبت شده کاربران"""
     try:
         cur.execute("SELECT id FROM users")
         return [row[0] for row in cur.fetchall()]
     except Exception as e:
-        print("[!] خطا در دریافت لیست کاربران:", e)
+        print("[!] خطا در دریافت کاربران:", e)
         return []
