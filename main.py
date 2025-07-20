@@ -348,7 +348,7 @@ ADDING_FILES = "adding_files"
 SETTING_COVER = "setting_cover"
 ADDING_CAPTION = "adding_caption"
 
-TOKEN = "توکن ربات را اینجا قرار دهید"
+TOKEN = "7301497411:AAGMxBMw8Fw3RYEqHU-S02qRJozJQ4qelic"
 BOT_URL = f"https://api.telegram.org/bot{TOKEN}"
 
 def send_keyboard(chat_id, text, buttons):
