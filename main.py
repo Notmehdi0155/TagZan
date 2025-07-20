@@ -406,9 +406,7 @@ def webhook():
             save_files(file_ids, code, cover_id, caption)
 
             link = f"https://t.me/{BOT_USERNAME}?start={code}"
-            msg_text = f"✅ فایل‌ها ذخیره شدند.
-📎 مشاهده: {link}"
-
+            
             requests.post(f"{BOT_URL}/sendMessage", json={"chat_id": chat_id, "text": msg_text})
             user_states.pop(user_id, None)
             user_states.pop(user_id + "_cover", None)
