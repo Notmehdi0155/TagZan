@@ -5,7 +5,7 @@ import time
 from config import BOT_TOKEN, WEBHOOK_URL, ADMIN_IDS, CHANNEL_TAG, PING_INTERVAL
 from database import (
     save_file, get_file, get_channels, add_channel, remove_channel,
-    get_all_user_ids, save_user_id, get_user_stats
+    get_all_user_ids, save_user_id, get_active_users, get_start_count
 )
 from utils import gen_code
 
@@ -49,9 +49,6 @@ def ping():
             pass
         time.sleep(PING_INTERVAL)
 
-threading.Thread(target=ping, daemon=True).start()
-threading.Thread(target=lambda: monitor_subscriptions(), daemon=True).start()
-
 def monitor_subscriptions():
     while True:
         for uid in list(active_users):
@@ -64,6 +61,9 @@ def monitor_subscriptions():
                 })
                 active_users.remove(uid)
         time.sleep(1)
+
+threading.Thread(target=ping, daemon=True).start()
+threading.Thread(target=monitor_subscriptions, daemon=True).start()
 
 @app.route("/")
 def index():
@@ -81,11 +81,9 @@ def webhook():
         state = users.get(uid, {})
 
         save_user_id(uid)
-        save_user_log(uid)
         if text.startswith("/start"):
-            save_start_log(uid)
+            save_user_id(uid)  # استارت همزمان ثبت می‌شود
 
-        # دریافت فایل‌ها
         if text.startswith("/start "):
             code = text.split("/start ")[1]
             file_id = get_file(code)
@@ -116,11 +114,12 @@ def webhook():
                 active_users.add(uid)
             return "ok"
 
-        # خوش‌آمدگویی
         if text == "/start":
-            send("sendMessage", {"chat_id": cid, "text": "سلام خوش اومدی عزیزم واسه دریافت فایل مد نظرت از کانال @hottof روی دکمه مشاهده بزن ♥️"})
+            send("sendMessage", {
+                "chat_id": cid,
+                "text": "سلام خوش اومدی عزیزم واسه دریافت فایل مد نظرت از کانال @hottof روی دکمه مشاهده بزن ♥️"
+            })
 
-        # پنل ادمین
         elif text == "/panel" and uid in ADMIN_IDS:
             kb = {"keyboard": [
                 [{"text": "🔞سوپر"}],
@@ -131,7 +130,6 @@ def webhook():
             ], "resize_keyboard": True}
             send("sendMessage", {"chat_id": cid, "text": "سلام آقا مدیر 🔱", "reply_markup": kb})
 
-        # دکمه آمار
         elif text == "📊 آمار" and uid in ADMIN_IDS:
             total = len(get_all_user_ids())
             hour_users = get_active_users(3600)
@@ -158,7 +156,6 @@ def webhook():
 """
             send("sendMessage", {"chat_id": cid, "text": stats})
 
-        # دکمه سوپر...
         elif text == "🔞سوپر" and uid in ADMIN_IDS:
             users[uid] = {"step": "awaiting_super_files", "files": []}
             send("sendMessage", {
@@ -215,7 +212,6 @@ def webhook():
                 ], "resize_keyboard": True}
             })
 
-        # دکمه پست
         elif text == "🖼پست" and uid in ADMIN_IDS:
             users[uid] = {"step": "awaiting_post_file"}
             send("sendMessage", {"chat_id": cid, "text": "لطفاً یک عکس یا ویدیو بفرست 📸🎥"})
@@ -248,7 +244,6 @@ def webhook():
                 ], "resize_keyboard": True}
             })
 
-        # ارسالی همگانی
         elif text == "📢 ارسالی همگانی" and uid in ADMIN_IDS:
             users[uid] = {"step": "awaiting_broadcast"}
             send("sendMessage", {
@@ -291,7 +286,6 @@ def webhook():
                     ], "resize_keyboard": True}
                 })
 
-        # عضویت اجباری
         elif text == "🔐 عضویت اجباری" and uid in ADMIN_IDS:
             channels = get_channels()
             lines = ["📋 لیست کانال‌ها:"] + [f"🔗 {ch}" for ch in channels] if channels else ["❌ هیچی ثبت نشده"]
