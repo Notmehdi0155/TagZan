@@ -12,7 +12,7 @@ users = {}
 pinging = True
 active_users = set()
 
------------------- ابزار ارسال ------------------
+#------------------ ابزار ارسال ------------------
 
 def send(method, data):
 response = requests.post(f"{URL}/{method}", json=data).json()
@@ -22,7 +22,7 @@ return response
 def delete(chat_id, message_id):
 send("deleteMessage", {"chat_id": chat_id, "message_id": message_id})
 
------------------- بررسی عضویت کانال ------------------
+#------------------ بررسی عضویت کانال ------------------
 
 def is_joined(user_id, channel_link):
 try:
@@ -43,7 +43,7 @@ buttons = [[{"text": f"📢 کانال {i+1}", "url": ch}] for i, ch in enumerat
 buttons.append([{"text": "✅ عضو شدم", "callback_data": f"checksub_{code}"}])
 return {"inline_keyboard": buttons}
 
------------------- پینگ ------------------
+#------------------ پینگ ------------------
 
 def ping():
 while pinging:
@@ -55,7 +55,7 @@ time.sleep(PING_INTERVAL)
 
 threading.Thread(target=ping, daemon=True).start()
 
------------------- بررسی خروج کاربران ------------------
+#------------------ بررسی خروج کاربران ------------------
 
 def monitor_subscriptions():
 while True:
@@ -72,7 +72,7 @@ time.sleep(1)
 
 threading.Thread(target=monitor_subscriptions, daemon=True).start()
 
------------------- روت ها ------------------
+#------------------ روت ها ------------------
 
 @app.route("/")
 def index():
