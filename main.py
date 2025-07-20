@@ -5,8 +5,7 @@ import time
 from config import BOT_TOKEN, WEBHOOK_URL, ADMIN_IDS, CHANNEL_TAG, PING_INTERVAL
 from database import (
     save_file, get_file, get_channels, add_channel, remove_channel,
-    get_all_user_ids, save_user_id, save_user_log, save_start_log,
-    get_active_users, get_start_count
+    get_all_user_ids, save_user_id, get_user_stats
 )
 from utils import gen_code
 
