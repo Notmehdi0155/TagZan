@@ -197,27 +197,28 @@ elif "callback_query" in update:
     mid = cq["message"]["message_id"]  
     data = cq["data"]  
 
-    if data.startswith("checksub_"):
-    code = data.split("_")[1]
-    unjoined = get_user_unjoined_channels(uid)
-    if not unjoined:
-        send("deleteMessage", {"chat_id": cid, "message_id": mid})
-        if code != "dummy":
-            file_id = get_file(code)
-            if file_id:
-                sent = send("sendVideo", {"chat_id": cid, "video": file_id})
-                if "result" in sent:
-                    mid = sent["result"]["message_id"]
-                    send("sendMessage", {"chat_id": cid, "text": "⚠️این محتوا تا ۲۰ ثانیه دیگر پاک میشود"})
-                    threading.Timer(20, delete, args=(cid, mid)).start()
-            else:
-                send("sendMessage", {"chat_id": cid, "text": "🙏 ممنون که هوامونو داری ❤️"})
-    else:
-        send("answerCallbackQuery", {
-            "callback_query_id": cq["id"],
-            "text": "❌ هنوز عضو همه کانال‌ها نیستی!",
-            "show_alert": True
-        })
+    if data.startswith("checksub_"):  
+        code = data.split("_")[1]  
+        unjoined = get_user_unjoined_channels(uid)  
+        if not unjoined:  
+            send("deleteMessage", {"chat_id": cid, "message_id": mid})  
+            if code != "dummy":  
+                file_id = get_file(code)  
+                if file_id:  
+                    sent = send("sendVideo", {"chat_id": cid, "video": file_id})
+
+if "result" in sent:
+mid = sent["result"]["message_id"]
+send("sendMessage", {"chat_id": cid, "text": "⚠️این محتوا تا ۲۰ ثانیه دیگر پاک میشود"})
+threading.Timer(20, delete, args=(cid, mid)).start()
+else:
+send("sendMessage", {"chat_id": cid, "text": "🙏 ممنون که هوامونو داری ❤️"})
+else:
+send("answerCallbackQuery", {
+"callback_query_id": cq["id"],
+"text": "❌ هنوز عضو همه کانال‌ها نیستی!",
+"show_alert": True
+})
 
 return "ok"
 
