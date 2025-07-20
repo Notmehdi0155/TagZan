@@ -56,7 +56,7 @@ def monitor_subscriptions():
             if unjoined:
                 send("sendMessage", {
                     "chat_id": uid,
-                    "text": "🚫 شما از کانال خارج شدی. لطفاً دوباره عضو شو.",
+                    "text": "کون طلایی از چنل لفت دادی چرا بیا جوین شو چنل بدون تو صفا نداره 😔💔",
                     "reply_markup": make_force_join_markup(unjoined, "dummy")
                 })
                 active_users.remove(uid)
@@ -92,7 +92,7 @@ def webhook():
                 if unjoined:
                     send("sendMessage", {
                         "chat_id": cid,
-                        "text": "⛔️ برای دریافت فایل، ابتدا در کانال‌های زیر عضو شو:",
+                        "text": "فدای اون شومبولت یه همت بکن عضو چنل شو تا فایل رو برات بفرستم ❤️",
                         "reply_markup": make_force_join_markup(unjoined, code)
                     })
                     return "ok"
@@ -106,7 +106,7 @@ def webhook():
                     sent = send("sendVideo", {"chat_id": cid, "video": file_id})
                     if sent and "result" in sent:
                         message_ids.append(sent["result"]["message_id"])
-                warn = send("sendMessage", {"chat_id": cid, "text": "⚠️ این محتوا تا ۲۰ ثانیه دیگر پاک می‌شود"})
+                warn = send("sendMessage", {"chat_id": cid, "text": "سریع ذخیره کن داخل سیو مسج 20 ثانیه دیگه میپاکمش ⚠️"})
                 if warn and "result" in warn:
                     message_ids.append(warn["result"]["message_id"])
                 for m in message_ids:
@@ -122,7 +122,7 @@ def webhook():
 
         elif text == "/panel" and uid in ADMIN_IDS:
             kb = {"keyboard": [
-                [{"text": "🔞سوپر"}],
+                [{"text": "📤آپلود"}],
                 [{"text": "🖼پست"}],
                 [{"text": "🔐 عضویت اجباری"}],
                 [{"text": "📢 ارسالی همگانی"}],
@@ -156,7 +156,7 @@ def webhook():
 """
             send("sendMessage", {"chat_id": cid, "text": stats})
 
-        elif text == "🔞سوپر" and uid in ADMIN_IDS:
+        elif text == "📤آپلود" and uid in ADMIN_IDS:
             users[uid] = {"step": "awaiting_super_files", "files": []}
             send("sendMessage", {
                 "chat_id": cid,
@@ -204,7 +204,7 @@ def webhook():
             send("sendMessage", {
                 "chat_id": cid, "text": "درخواست شما تایید شد✅️",
                 "reply_markup": {"keyboard": [
-                    [{"text": "🔞سوپر"}],
+                    [{"text": "📤آپلود"}],
                     [{"text": "🖼پست"}],
                     [{"text": "🔐 عضویت اجباری"}],
                     [{"text": "📢 ارسالی همگانی"}],
@@ -236,7 +236,7 @@ def webhook():
             send("sendMessage", {
                 "chat_id": cid, "text": "✅ پیش‌نمایش ارسال شد.",
                 "reply_markup": {"keyboard": [
-                    [{"text": "🔞سوپر"}],
+                    [{"text": "📤آپلود"}],
                     [{"text": "🖼پست"}],
                     [{"text": "🔐 عضویت اجباری"}],
                     [{"text": "📢 ارسالی همگانی"}],
@@ -257,7 +257,7 @@ def webhook():
                 send("sendMessage", {
                     "chat_id": cid, "text": "بازگشت به پنل.",
                     "reply_markup": {"keyboard": [
-                        [{"text": "🔞سوپر"}],
+                        [{"text": "📤آپلود"}],
                         [{"text": "🖼پست"}],
                         [{"text": "🔐 عضویت اجباری"}],
                         [{"text": "📢 ارسالی همگانی"}],
@@ -278,7 +278,7 @@ def webhook():
                 send("sendMessage", {
                     "chat_id": cid, "text": "✅ پیام به همه ارسال شد.",
                     "reply_markup": {"keyboard": [
-                        [{"text": "🔞سوپر"}],
+                        [{"text": "📤آپلود"}],
                         [{"text": "🖼پست"}],
                         [{"text": "🔐 عضویت اجباری"}],
                         [{"text": "📢 ارسالی همگانی"}],
