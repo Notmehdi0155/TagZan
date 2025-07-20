@@ -1,12 +1,20 @@
 import sqlite3
 import time
+import os
+
+# تعیین مسیر پایدار برای دیتابیس
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, "data")
+DB_PATH = os.path.join(DATA_DIR, "videos.db")
+
+# اگر فولدر data وجود ندارد، بساز
+os.makedirs(DATA_DIR, exist_ok=True)
 
 # اتصال به دیتابیس
-conn = sqlite3.connect("videos.db", check_same_thread=False)
+conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 cur = conn.cursor()
 
 # ---------- ساخت جدول‌ها ----------
-
 cur.execute("""
 CREATE TABLE IF NOT EXISTS videos (
     code TEXT PRIMARY KEY,
