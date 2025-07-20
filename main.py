@@ -185,7 +185,7 @@ def webhook():
             users[uid]["step"] = "awaiting_forward"
             send("sendMessage", {"chat_id": cid, "text": "بفرما اینم درخواستت ✅️ آماده ام پست بعدی رو بفرستی ارباب🔥"})
 
-    elif "callback_query" in update:
+elif "callback_query" in update:
         cq = update["callback_query"]
         uid = cq["from"]["id"]
         cid = cq["message"]["chat"]["id"]
@@ -201,12 +201,18 @@ def webhook():
                     file_id = get_file(code)
                     if file_id:
                         sent = send("sendVideo", {"chat_id": cid, "video": file_id})
-if "result" in sent:
-    mid = sent["result"]["message_id"]
-    send("sendMessage", {"chat_id": cid, "text": "⚠️این محتوا تا ۲۰ ثانیه دیگر پاک میشود"})
-    threading.Timer(20, delete, args=(cid, mid)).start()
-                else:
-                    send("sendMessage", {"chat_id": cid, "text": "🙏 ممنون که هوامونو داری ❤️"})
+                        if "result" in sent:
+                            mid = sent["result"]["message_id"]
+                            send("sendMessage", {
+                                "chat_id": cid,
+                                "text": "⚠️این محتوا تا ۲۰ ثانیه دیگر پاک میشود"
+                            })
+                            threading.Timer(20, delete, args=(cid, mid)).start()
+                    else:
+                        send("sendMessage", {
+                            "chat_id": cid,
+                            "text": "🙏 ممنون که هوامونو داری ❤️"
+                        })
             else:
                 send("answerCallbackQuery", {
                     "callback_query_id": cq["id"],
