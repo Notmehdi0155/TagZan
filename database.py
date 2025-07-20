@@ -22,6 +22,13 @@ CREATE TABLE IF NOT EXISTS forced_channels (
 )
 """)
 
+# جدول کاربران برای ارسال همگانی
+cur.execute("""
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY
+)
+""")
+
 conn.commit()
 
 # ---------- مدیریت فایل‌ها ----------
@@ -72,4 +79,24 @@ def get_channels():
         return [row[0] for row in cur.fetchall()]
     except Exception as e:
         print("[!] خطا در دریافت لیست کانال‌ها:", e)
+        return []
+
+# ---------- مدیریت کاربران برای ارسال همگانی ----------
+
+def save_user_id(user_id):
+    """ذخیره آیدی کاربر برای ارسال همگانی"""
+    try:
+        cur.execute("INSERT OR IGNORE INTO users (id) VALUES (?)", (user_id,))
+        conn.commit()
+        print(f"[+] کاربر ذخیره شد: {user_id}")
+    except Exception as e:
+        print("[!] خطا در ذخیره آیدی:", e)
+
+def get_all_user_ids():
+    """دریافت همه آیدی‌های ثبت شده کاربران"""
+    try:
+        cur.execute("SELECT id FROM users")
+        return [row[0] for row in cur.fetchall()]
+    except Exception as e:
+        print("[!] خطا در دریافت لیست کاربران:", e)
         return []
