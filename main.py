@@ -53,7 +53,6 @@ def index():
 @app.route("/webhook", methods=["POST"])
 def webhook():
     update = request.get_json()
-
     if "message" in update:
         msg = update["message"]
         uid = msg["from"]["id"]
@@ -115,11 +114,7 @@ def webhook():
                     send("sendMessage", {"chat_id": cid, "text": "⛔️ هنوز فایلی نفرستادی."})
                 else:
                     users[uid]["step"] = "awaiting_caption"
-                    send("sendMessage", {
-                        "chat_id": cid,
-                        "text": "حالا کپشنتو بفرست ✍️",
-                        "reply_markup": {"remove_keyboard": True}
-                    })
+                    send("sendMessage", {"chat_id": cid, "text": "حالا کپشنتو بفرست ✍️", "reply_markup": {"remove_keyboard": True}})
             elif any(k in msg for k in ["video", "photo", "document", "audio"]):
                 fid = msg.get("video", msg.get("photo", msg.get("document", msg.get("audio")))) or {}
                 if isinstance(fid, list):
@@ -127,11 +122,7 @@ def webhook():
                 file_id = fid.get("file_id")
                 if file_id:
                     users[uid]["files"].append(file_id)
-                    send("sendMessage", {
-                        "chat_id": cid,
-                        "text": "✅ فایل ذخیره شد.",
-                        "reply_markup": {"keyboard": [[{"text": "⏭ مرحله بعد"}]], "resize_keyboard": True}
-                    })
+                    send("sendMessage", {"chat_id": cid, "text": "✅ فایل ذخیره شد.", "reply_markup": {"keyboard": [[{"text": "⏭ مرحله بعد"}]], "resize_keyboard": True}})
             else:
                 send("sendMessage", {"chat_id": cid, "text": "⚠️ فقط فایل رسانه‌ای مجازه."})
 
@@ -156,10 +147,37 @@ def webhook():
             send("sendMessage", {
                 "chat_id": cid,
                 "text": "درخواست شما تایید شد✅️",
-                "reply_markup": {
-                    "keyboard": [[{"text": "🔞سوپر"}], [{"text": "🖼پست"}], [{"text": "🔐 عضویت اجباری"}], [{"text": "📢 ارسالی همگانی"}]],
-                    "resize_keyboard": True
-                }
+                "reply_markup": {"keyboard": [[{"text": "🔞سوپر"}], [{"text": "🖼پست"}], [{"text": "🔐 عضویت اجباری"}], [{"text": "📢 ارسالی همگانی"}]], "resize_keyboard": True}
+            })
+
+        elif text == "🖼پست" and uid in ADMIN_IDS:
+            users[uid] = {"step": "awaiting_post_file"}
+            send("sendMessage", {"chat_id": cid, "text": "لطفاً یک عکس یا ویدیو بفرست 📸🎥"})
+
+        elif state.get("step") == "awaiting_post_file":
+            if "photo" in msg or "video" in msg:
+                file_type = "photo" if "photo" in msg else "video"
+                file_data = msg[file_type][-1]["file_id"] if file_type == "photo" else msg[file_type]["file_id"]
+                users[uid]["step"] = "awaiting_post_caption"
+                users[uid]["post_file_type"] = file_type
+                users[uid]["post_file_id"] = file_data
+                send("sendMessage", {"chat_id": cid, "text": "حالا کپشن رو بفرست ✍️"})
+            else:
+                send("sendMessage", {"chat_id": cid, "text": "⚠️ فقط عکس یا ویدیو مجاز است."})
+
+        elif state.get("step") == "awaiting_post_caption":
+            file_type = users[uid]["post_file_type"]
+            file_id = users[uid]["post_file_id"]
+            caption = text + "\n\n" + CHANNEL_TAG
+            if file_type == "photo":
+                send("sendPhoto", {"chat_id": cid, "photo": file_id, "caption": caption})
+            else:
+                send("sendVideo", {"chat_id": cid, "video": file_id, "caption": caption})
+            users.pop(uid)
+            send("sendMessage", {
+                "chat_id": cid,
+                "text": "✅ پیش‌نمایش ارسال شد.",
+                "reply_markup": {"keyboard": [[{"text": "🔞سوپر"}], [{"text": "🖼پست"}], [{"text": "🔐 عضویت اجباری"}], [{"text": "📢 ارسالی همگانی"}]], "resize_keyboard": True}
             })
 
         elif text == "📢 ارسالی همگانی" and uid in ADMIN_IDS:
@@ -175,11 +193,8 @@ def webhook():
                 users.pop(uid)
                 send("sendMessage", {
                     "chat_id": cid,
-                    "text": "بازگشتی به پنل.",
-                    "reply_markup": {
-                        "keyboard": [[{"text": "🔞سوپر"}], [{"text": "🖼پست"}], [{"text": "🔐 عضویت اجباری"}], [{"text": "📢 ارسالی همگانی"}]],
-                        "resize_keyboard": True
-                    }
+                    "text": "بازگشت به پنل.",
+                    "reply_markup": {"keyboard": [[{"text": "🔞سوپر"}], [{"text": "🖼پست"}], [{"text": "🔐 عضویت اجباری"}], [{"text": "📢 ارسالی همگانی"}]], "resize_keyboard": True}
                 })
             else:
                 users.pop(uid)
@@ -195,10 +210,7 @@ def webhook():
                 send("sendMessage", {
                     "chat_id": cid,
                     "text": "✅ پیام به همه ارسال شد.",
-                    "reply_markup": {
-                        "keyboard": [[{"text": "🔞سوپر"}], [{"text": "🖼پست"}], [{"text": "🔐 عضویت اجباری"}], [{"text": "📢 ارسالی همگانی"}]],
-                        "resize_keyboard": True
-                    }
+                    "reply_markup": {"keyboard": [[{"text": "🔞سوپر"}], [{"text": "🖼پست"}], [{"text": "🔐 عضویت اجباری"}], [{"text": "📢 ارسالی همگانی"}]], "resize_keyboard": True}
                 })
 
         elif text == "🔐 عضویت اجباری" and uid in ADMIN_IDS:
