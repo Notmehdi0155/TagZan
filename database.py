@@ -1,12 +1,11 @@
 import sqlite3
+import time
 
-# اتصال به دیتابیس (فایل در کنار پروژه ایجاد می‌شود)
 conn = sqlite3.connect("videos.db", check_same_thread=False)
 cur = conn.cursor()
 
 # ---------- ساخت جدول‌ها در صورت نبود ----------
 
-# جدول ویدیوها (کد اختصاصی → file_id)
 cur.execute("""
 CREATE TABLE IF NOT EXISTS videos (
     code TEXT PRIMARY KEY,
@@ -14,7 +13,6 @@ CREATE TABLE IF NOT EXISTS videos (
 )
 """)
 
-# جدول کانال‌های عضویت اجباری
 cur.execute("""
 CREATE TABLE IF NOT EXISTS forced_channels (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -22,10 +20,18 @@ CREATE TABLE IF NOT EXISTS forced_channels (
 )
 """)
 
-# جدول کاربران برای ارسال همگانی
 cur.execute("""
 CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY
+    id INTEGER PRIMARY KEY,
+    joined_at INTEGER
+)
+""")
+
+cur.execute("""
+CREATE TABLE IF NOT EXISTS starts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    timestamp INTEGER
 )
 """)
 
@@ -34,7 +40,6 @@ conn.commit()
 # ---------- مدیریت فایل‌ها ----------
 
 def save_file(file_id, code):
-    """ذخیره یک فایل با کد اختصاصی در جدول ویدیوها"""
     try:
         cur.execute("INSERT OR REPLACE INTO videos (code, file_id) VALUES (?, ?)", (code, file_id))
         conn.commit()
@@ -43,7 +48,6 @@ def save_file(file_id, code):
         print("[!] خطا در ذخیره فایل:", e)
 
 def get_file(code):
-    """دریافت file_id با استفاده از کد اختصاصی"""
     try:
         cur.execute("SELECT file_id FROM videos WHERE code = ?", (code,))
         row = cur.fetchone()
@@ -52,10 +56,9 @@ def get_file(code):
         print("[!] خطا در دریافت فایل:", e)
         return None
 
-# ---------- مدیریت کانال‌های عضویت اجباری ----------
+# ---------- مدیریت کانال‌ها ----------
 
 def add_channel(link):
-    """افزودن لینک کانال به لیست عضویت اجباری"""
     try:
         cur.execute("INSERT OR IGNORE INTO forced_channels (link) VALUES (?)", (link,))
         conn.commit()
@@ -64,7 +67,6 @@ def add_channel(link):
         print("[!] خطا در افزودن کانال:", e)
 
 def remove_channel(link):
-    """حذف لینک کانال از لیست عضویت اجباری"""
     try:
         cur.execute("DELETE FROM forced_channels WHERE link = ?", (link,))
         conn.commit()
@@ -73,7 +75,6 @@ def remove_channel(link):
         print("[!] خطا در حذف کانال:", e)
 
 def get_channels():
-    """دریافت همه لینک‌های ثبت شده کانال‌های عضویت اجباری"""
     try:
         cur.execute("SELECT link FROM forced_channels")
         return [row[0] for row in cur.fetchall()]
@@ -81,22 +82,46 @@ def get_channels():
         print("[!] خطا در دریافت لیست کانال‌ها:", e)
         return []
 
-# ---------- مدیریت کاربران برای ارسال همگانی ----------
+# ---------- مدیریت کاربران ----------
 
 def save_user_id(user_id):
-    """ذخیره آیدی کاربر برای ارسال همگانی"""
+    """ثبت اولین ورود کاربر به ربات (برای ارسال همگانی)"""
     try:
-        cur.execute("INSERT OR IGNORE INTO users (id) VALUES (?)", (user_id,))
+        now = int(time.time())
+        cur.execute("INSERT OR IGNORE INTO users (id, joined_at) VALUES (?, ?)", (user_id, now))
         conn.commit()
         print(f"[+] کاربر ذخیره شد: {user_id}")
     except Exception as e:
         print("[!] خطا در ذخیره آیدی:", e)
 
 def get_all_user_ids():
-    """دریافت همه آیدی‌های ثبت شده کاربران"""
     try:
         cur.execute("SELECT id FROM users")
         return [row[0] for row in cur.fetchall()]
     except Exception as e:
         print("[!] خطا در دریافت لیست کاربران:", e)
         return []
+
+# ---------- ثبت و آمار استارت ----------
+
+def log_start(user_id):
+    """ثبت استارت ربات"""
+    try:
+        now = int(time.time())
+        cur.execute("INSERT INTO starts (user_id, timestamp) VALUES (?, ?)", (user_id, now))
+        conn.commit()
+        print(f"[+] استارت ثبت شد: {user_id}")
+    except Exception as e:
+        print("[!] خطا در ثبت استارت:", e)
+
+def get_user_stats(since_seconds_ago):
+    """تعداد کاربران جدید از زمان مشخص‌شده تاکنون"""
+    since = int(time.time()) - since_seconds_ago
+    cur.execute("SELECT COUNT(*) FROM users WHERE joined_at >= ?", (since,))
+    return cur.fetchone()[0]
+
+def get_start_stats(since_seconds_ago):
+    """تعداد استارت‌های ثبت‌شده از زمان مشخص‌شده تاکنون"""
+    since = int(time.time()) - since_seconds_ago
+    cur.execute("SELECT COUNT(*) FROM starts WHERE timestamp >= ?", (since,))
+    return cur.fetchone()[0]
