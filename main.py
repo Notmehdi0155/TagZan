@@ -147,30 +147,32 @@ def webhook():
                     send("sendMessage", {"chat_id": user_id, "text": msg["text"]})
             send("sendMessage", {"chat_id": cid, "text": "✅ پیام به همه کاربران ارسال شد."})
 
+        # ✅ این قسمت جدید است
         elif text == "🔞سوپر" and uid in ADMIN_IDS:
-            users[uid] = {"step": "awaiting_video"}
-            send("sendMessage", {"chat_id": cid, "text": "ای جان یه سوپر ناب برام بفرست 🍌"})
+            users[uid] = {"step": "awaiting_files", "files": []}
+            send("sendMessage", {"chat_id": cid, "text": "میتونی چندتا فایل برام بفرستی 📂\nوقتی تموم شد بزن ⏭ مرحله بعد", "reply_markup": {"keyboard": [[{"text": "⏭ مرحله بعد"}]], "resize_keyboard": True}})
 
-        elif text == "🖼پست" and uid in ADMIN_IDS:
-            users[uid] = {"step": "awaiting_forward"}
-            send("sendMessage", {"chat_id": cid, "text": "محتوا رو برا فوروارد کن یادت نره تگ بزنی روش ✅️"})
-
-        elif state.get("step") == "awaiting_video" and "video" in msg:
-            users[uid]["step"] = "awaiting_caption"
-            users[uid]["file_id"] = msg["video"]["file_id"]
-            send("sendMessage", {"chat_id": cid, "text": "منتظر کپشن خوشکلت هستم 💫"})
+        elif state.get("step") == "awaiting_files":
+            if "document" in msg or "video" in msg or "photo" in msg:
+                file = msg.get("document") or msg.get("video") or msg.get("photo")[-1]
+                users[uid]["files"].append(file["file_id"])
+                send("sendMessage", {"chat_id": cid, "text": "✅ فایل ذخیره شد. فایل بعدی رو بفرست یا مرحله بعد رو بزن."})
+            elif text == "⏭ مرحله بعد":
+                users[uid]["step"] = "awaiting_caption"
+                send("sendMessage", {"chat_id": cid, "text": "حالا کپشن رو بفرست ✍️"})
 
         elif state.get("step") == "awaiting_caption":
             users[uid]["step"] = "awaiting_cover"
             users[uid]["caption"] = text
-            send("sendMessage", {"chat_id": cid, "text": "یه عکس برای پیش نمایش بهم بده 📸"})
+            send("sendMessage", {"chat_id": cid, "text": "یه عکس برای کاور بفرست 📸"})
 
         elif state.get("step") == "awaiting_cover" and "photo" in msg:
-            file_id = users[uid]["file_id"]
-            caption = users[uid]["caption"]
             cover_id = msg["photo"][-1]["file_id"]
+            caption = users[uid]["caption"]
+            files = users[uid]["files"]
             code = gen_code()
-            save_file(file_id, code)
+            for f in files:
+                save_file(f, code)
             link = f"<a href='https://t.me/Up_jozve_bot?start={code}'>مشاهده</a>\n\n{CHANNEL_TAG}"
             send("sendPhoto", {
                 "chat_id": cid,
@@ -181,9 +183,13 @@ def webhook():
             users.pop(uid)
             send("sendMessage", {
                 "chat_id": cid,
-                "text": "درخواست شما تایید شد✅️",
+                "text": "✅ ذخیره شد و آماده شد برای استفاده کاربرا",
                 "reply_markup": {"keyboard": [[{"text": "🔞سوپر"}], [{"text": "🖼پست"}], [{"text": "🔐 عضویت اجباری"}], [{"text": "📢 ارسالی همگانی"}]], "resize_keyboard": True}
             })
+
+        elif text == "🖼پست" and uid in ADMIN_IDS:
+            users[uid] = {"step": "awaiting_forward"}
+            send("sendMessage", {"chat_id": cid, "text": "محتوا رو برا فوروارد کن یادت نره تگ بزنی روش ✅️"})
 
         elif state.get("step") == "awaiting_forward" and ("video" in msg or "photo" in msg):
             users[uid]["step"] = "awaiting_post_caption"
