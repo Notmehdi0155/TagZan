@@ -3,7 +3,7 @@ import requests
 import threading
 import time
 from config import BOT_TOKEN, WEBHOOK_URL, ADMIN_IDS, CHANNEL_TAG, PING_INTERVAL
-from database import save_file, get_file, get_channels, add_channel, remove_channel
+from database import save_file, get_file, get_channels, add_channel, remove_channel, get_all_user_ids, save_user_id
 from utils import gen_code
 
 app = Flask(__name__)
@@ -85,6 +85,9 @@ def webhook():
         text = msg.get("text", "")
         state = users.get(uid, {})
 
+        # ذخیره کاربر برای ارسال همگانی
+        save_user_id(uid)
+
         # ---------- /start با کد ----------
         if text.startswith("/start "):
             code = text.split("/start ")[1]
@@ -106,13 +109,11 @@ def webhook():
                 active_users.add(uid)
             return "ok"
 
-        # ---------- /start بدون کد ----------
         if text == "/start":
             send("sendMessage", {"chat_id": cid, "text": "سلام خوش اومدی عزیزم واسه دریافت فایل مد نظرت از کانال @hottof روی دکمه مشاهده بزن ♥️"})
 
-        # ---------- پنل مدیریت ----------
         elif text == "/panel" and uid in ADMIN_IDS:
-            kb = {"keyboard": [[{"text": "🔞سوپر"}], [{"text": "🖼پست"}], [{"text": "🔐 عضویت اجباری"}]], "resize_keyboard": True}
+            kb = {"keyboard": [[{"text": "🔞سوپر"}], [{"text": "🖼پست"}], [{"text": "🔐 عضویت اجباری"}], [{"text": "📢 ارسالی همگانی"}]], "resize_keyboard": True}
             send("sendMessage", {"chat_id": cid, "text": "سلام آقا مدیر 🔱", "reply_markup": kb})
 
         elif text == "🔐 عضویت اجباری" and uid in ADMIN_IDS:
@@ -129,7 +130,23 @@ def webhook():
             remove_channel(text[1:])
             send("sendMessage", {"chat_id": cid, "text": "🗑 کانال حذف شد."})
 
-        # ---------- مراحل پست ----------
+        elif text == "📢 ارسالی همگانی" and uid in ADMIN_IDS:
+            users[uid] = {"step": "awaiting_broadcast"}
+            send("sendMessage", {"chat_id": cid, "text": "پیام مورد نظر برای ارسال همگانی را بفرستید (عکس یا متن همراه با کپشن)."})
+
+        elif state.get("step") == "awaiting_broadcast":
+            users.pop(uid)
+            user_ids = get_all_user_ids()
+            if "photo" in msg:
+                photo_id = msg["photo"][-1]["file_id"]
+                caption = msg.get("caption", "")
+                for user_id in user_ids:
+                    send("sendPhoto", {"chat_id": user_id, "photo": photo_id, "caption": caption})
+            elif "text" in msg:
+                for user_id in user_ids:
+                    send("sendMessage", {"chat_id": user_id, "text": msg["text"]})
+            send("sendMessage", {"chat_id": cid, "text": "✅ پیام به همه کاربران ارسال شد."})
+
         elif text == "🔞سوپر" and uid in ADMIN_IDS:
             users[uid] = {"step": "awaiting_video"}
             send("sendMessage", {"chat_id": cid, "text": "ای جان یه سوپر ناب برام بفرست 🍌"})
@@ -165,7 +182,7 @@ def webhook():
             send("sendMessage", {
                 "chat_id": cid,
                 "text": "درخواست شما تایید شد✅️",
-                "reply_markup": {"keyboard": [[{"text": "🔞سوپر"}], [{"text": "🖼پست"}], [{"text": "🔐 عضویت اجباری"}]], "resize_keyboard": True}
+                "reply_markup": {"keyboard": [[{"text": "🔞سوپر"}], [{"text": "🖼پست"}], [{"text": "🔐 عضویت اجباری"}], [{"text": "📢 ارسالی همگانی"}]], "resize_keyboard": True}
             })
 
         elif state.get("step") == "awaiting_forward" and ("video" in msg or "photo" in msg):
