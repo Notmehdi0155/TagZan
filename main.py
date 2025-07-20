@@ -1,4 +1,3 @@
-
 from flask import Flask, request
 import requests
 import threading
@@ -160,9 +159,7 @@ def webhook():
             send("sendPhoto", {
                 "chat_id": cid,
                 "photo": msg["photo"][-1]["file_id"],
-                "caption": users[uid]["caption"] + "
-
-" + link,
+                "caption": users[uid]["caption"] + "\n\n" + link,
                 "parse_mode": "HTML"
             })
             users.pop(uid)
@@ -176,21 +173,24 @@ def webhook():
             users[uid] = {"step": "awaiting_broadcast"}
             send("sendMessage", {
                 "chat_id": cid,
-                "text": "پیام مورد نظر برای ارسال همگانی را بفرستید (عکس یا متن همراه با کپشن). برای بازگشت دکمه زیر را بزنید.",
-                "reply_markup": {"keyboard": [[{"text": "⬅️ بازگشت"}]], "resize_keyboard": True}
+                "text": "پیام مورد نظر برای ارسال همگانی را بفرستید (عکس یا متن همراه با کپشن). برای بازگشت، /panel را بزن.",
+                "reply_markup": {"keyboard": [[{"text": "🔙 بازگشت"}]], "resize_keyboard": True}
+            })
+
+        elif text == "🔙 بازگشت" and state.get("step") == "awaiting_broadcast":
+            users.pop(uid, None)
+            send("sendMessage", {
+                "chat_id": cid,
+                "text": "به پنل برگشتی ⬅️",
+                "reply_markup": {"keyboard": [[{"text": "🔞سوپر"}], [{"text": "🖼پست"}], [{"text": "🔐 عضویت اجباری"}], [{"text": "📢 ارسالی همگانی"}]], "resize_keyboard": True}
             })
 
         elif state.get("step") == "awaiting_broadcast":
-            if text.strip() in ["بازگشت", "⬅️ بازگشت", "🔞سوپر", "🖼پست", "📢 ارسالی همگانی", "🔐 عضویت اجباری"]:
-                users.pop(uid)
-                kb = {
-                    "keyboard": [[{"text": "🔞سوپر"}], [{"text": "🖼پست"}], [{"text": "🔐 عضویت اجباری"}], [{"text": "📢 ارسالی همگانی"}]],
-                    "resize_keyboard": True
-                }
-                send("sendMessage", {"chat_id": cid, "text": "بازگشتی به پنل مدیریت انجام شد 🔙", "reply_markup": kb})
+            if not any(k in msg for k in ["photo", "text"]):
+                send("sendMessage", {"chat_id": cid, "text": "⚠️ فقط متن یا عکس قابل ارسال است. یا /panel را بزن برای بازگشت."})
                 return "ok"
 
-            users.pop(uid)
+            users.pop(uid, None)
             user_ids = get_all_user_ids()
             if "photo" in msg:
                 photo_id = msg["photo"][-1]["file_id"]
@@ -200,7 +200,57 @@ def webhook():
             elif "text" in msg:
                 for user_id in user_ids:
                     send("sendMessage", {"chat_id": user_id, "text": msg["text"]})
-            send("sendMessage", {"chat_id": cid, "text": "✅ پیام به همه کاربران ارسال شد."})
+            send("sendMessage", {
+                "chat_id": cid,
+                "text": "✅ پیام به همه کاربران ارسال شد.",
+                "reply_markup": {"keyboard": [[{"text": "🔞سوپر"}], [{"text": "🖼پست"}], [{"text": "🔐 عضویت اجباری"}], [{"text": "📢 ارسالی همگانی"}]], "resize_keyboard": True}
+            })
+
+    elif "callback_query" in update:
+        cq = update["callback_query"]
+        uid = cq["from"]["id"]
+        cid = cq["message"]["chat"]["id"]
+        mid = cq["message"]["message_id"]
+        data = cq["data"]
+
+        if data.startswith("checksub_"):
+            code = data.split("_")[1]
+            unjoined = get_user_unjoined_channels(uid)
+            if not unjoined:
+                send("deleteMessage", {"chat_id": cid, "message_id": mid})
+                if code != "dummy":
+                    file_id = get_file(code)
+                    if file_id:
+                        if "|" in file_id:
+                            message_ids = []
+                            for fid in file_id.split("|"):
+                                sent = send("sendDocument", {"chat_id": cid, "document": fid})
+                                if sent and "result" in sent:
+                                    message_ids.append(sent["result"]["message_id"])
+                            warn = send("sendMessage", {"chat_id": cid, "text": "⚠️ این محتوا تا ۲۰ ثانیه دیگر پاک می‌شود"})
+                            if "result" in warn:
+                                message_ids.append(warn["result"]["message_id"])
+                            for mid in message_ids:
+                                threading.Timer(20, delete, args=(cid, mid)).start()
+                        else:
+                            sent = send("sendVideo", {"chat_id": cid, "video": file_id})
+                            if "result" in sent:
+                                content_mid = sent["result"]["message_id"]
+                                warn = send("sendMessage", {"chat_id": cid, "text": "⚠️ این محتوا تا ۲۰ ثانیه دیگر پاک می‌شود"})
+                                threading.Timer(20, delete, args=(cid, content_mid)).start()
+                                if "result" in warn:
+                                    threading.Timer(20, delete, args=(cid, warn["result"]["message_id"])).start()
+                        active_users.add(uid)
+                    else:
+                        send("sendMessage", {"chat_id": cid, "text": "❗ فایل یافت نشد."})
+                else:
+                    send("sendMessage", {"chat_id": cid, "text": "🙏 ممنون که هوامونو داری ❤️"})
+            else:
+                send("answerCallbackQuery", {
+                    "callback_query_id": cq["id"],
+                    "text": "❌ هنوز عضو همه کانال‌ها نیستی!",
+                    "show_alert": True
+                })
 
     return "ok"
 
