@@ -105,6 +105,24 @@ def get_all_user_ids():
 
 # ---------- آمارگیری کاربران و استارت ----------
 
+def get_active_users(seconds):
+    try:
+        since = int(time.time()) - seconds
+        cur.execute("SELECT COUNT(*) FROM users WHERE joined_at >= ?", (since,))
+        return cur.fetchone()[0]
+    except Exception as e:
+        print("[!] خطا در دریافت کاربران فعال:", e)
+        return 0
+
+def get_start_count(seconds):
+    try:
+        since = int(time.time()) - seconds
+        cur.execute("SELECT COUNT(*) FROM users WHERE last_start >= ?", (since,))
+        return cur.fetchone()[0]
+    except Exception as e:
+        print("[!] خطا در دریافت تعداد استارت:", e)
+        return 0
+
 def get_user_stats():
     try:
         now = int(time.time())
