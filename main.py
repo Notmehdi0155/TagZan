@@ -406,10 +406,8 @@ def webhook():
             save_files(file_ids, code, cover_id, caption)
 
             link = f"https://t.me/{BOT_USERNAME}?start={code}"
-            msg_text = (
-    f"✅ فایل‌ها ذخیره شدند.\n"
-    f"برای مشاهده کلیک کنید: {link}"
-            )
+            msg_text = f"✅ فایل‌ها ذخیره شدند.
+📎 مشاهده: {link}"
 
             requests.post(f"{BOT_URL}/sendMessage", json={"chat_id": chat_id, "text": msg_text})
             user_states.pop(user_id, None)
@@ -432,3 +430,26 @@ def webhook():
                 return "ok"
 
     return "ok"
+
+# 🎯 ذخیره فایل‌ها در حالت سوپر (چندفایلی)
+if chat_id in state and state[chat_id].get("step") == "waiting_files":
+    content_type = message.content_type
+    file_id = None
+
+    if content_type == "video" and message.video:
+        file_id = message.video.file_id
+    elif content_type == "photo" and message.photo:
+        file_id = message.photo[-1].file_id
+    elif content_type == "document" and message.document:
+        file_id = message.document.file_id
+    elif content_type == "audio" and message.audio:
+        file_id = message.audio.file_id
+    elif content_type == "voice" and message.voice:
+        file_id = message.voice.file_id
+    elif content_type == "animation" and message.animation:
+        file_id = message.animation.file_id
+
+    if file_id:
+        state[chat_id]["files"].append((content_type, file_id))
+        bot.send_message(chat_id, f"✅ فایل ({content_type}) ذخیره شد. می‌تونی ادامه بدی یا «📎 مرحله بعد» رو بزنی.")
+        return "ok"
