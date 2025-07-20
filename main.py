@@ -200,8 +200,17 @@ def webhook():
                 if code != "dummy":
                     file_id = get_file(code)
                     if file_id:
-                        send("sendVideo", {"chat_id": cid, "video": file_id})
+                        sent = send("sendVideo", {"chat_id": cid, "video": file_id})
+                        if "result" in sent:
+                            content_mid = sent["result"]["message_id"]
+                            send("sendMessage", {
+                                "chat_id": cid,
+                                "text": "⚠️ این محتوا تا ۲۰ ثانیه دیگر پاک می‌شود"
+                            })
+                            threading.Timer(20, delete, args=(cid, content_mid)).start()
                         active_users.add(uid)
+                    else:
+                        send("sendMessage", {"chat_id": cid, "text": "❗ فایل یافت نشد."})
                 else:
                     send("sendMessage", {"chat_id": cid, "text": "🙏 ممنون که هوامونو داری ❤️"})
             else:
