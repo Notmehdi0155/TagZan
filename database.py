@@ -1,10 +1,11 @@
 import sqlite3
 import time
 
+# اتصال به دیتابیس
 conn = sqlite3.connect("videos.db", check_same_thread=False)
 cur = conn.cursor()
 
-# ---------- ساخت جدول‌ها در صورت نبود ----------
+# ---------- ساخت جدول‌ها ----------
 
 cur.execute("""
 CREATE TABLE IF NOT EXISTS videos (
@@ -23,15 +24,9 @@ CREATE TABLE IF NOT EXISTS forced_channels (
 cur.execute("""
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY,
-    joined_at INTEGER
-)
-""")
-
-cur.execute("""
-CREATE TABLE IF NOT EXISTS starts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER,
-    timestamp INTEGER
+    joined_at INTEGER,
+    start_count INTEGER DEFAULT 0,
+    last_start INTEGER
 )
 """)
 
@@ -85,12 +80,18 @@ def get_channels():
 # ---------- مدیریت کاربران ----------
 
 def save_user_id(user_id):
-    """ثبت اولین ورود کاربر به ربات (برای ارسال همگانی)"""
+    """ثبت یا بروزرسانی کاربر در جدول users"""
     try:
         now = int(time.time())
-        cur.execute("INSERT OR IGNORE INTO users (id, joined_at) VALUES (?, ?)", (user_id, now))
+        cur.execute("""
+            INSERT INTO users (id, joined_at, start_count, last_start)
+            VALUES (?, ?, 1, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                start_count = start_count + 1,
+                last_start = excluded.last_start
+        """, (user_id, now, now))
         conn.commit()
-        print(f"[+] کاربر ذخیره شد: {user_id}")
+        print(f"[+] کاربر ثبت شد: {user_id}")
     except Exception as e:
         print("[!] خطا در ذخیره آیدی:", e)
 
@@ -102,26 +103,35 @@ def get_all_user_ids():
         print("[!] خطا در دریافت لیست کاربران:", e)
         return []
 
-# ---------- ثبت و آمار استارت ----------
+# ---------- آمارگیری کاربران و استارت ----------
 
-def log_start(user_id):
-    """ثبت استارت ربات"""
+def get_user_stats():
     try:
         now = int(time.time())
-        cur.execute("INSERT INTO starts (user_id, timestamp) VALUES (?, ?)", (user_id, now))
-        conn.commit()
-        print(f"[+] استارت ثبت شد: {user_id}")
+        cur.execute("SELECT COUNT(*) FROM users")
+        total = cur.fetchone()[0]
+
+        def count_since(seconds):
+            since = now - seconds
+            cur.execute("SELECT COUNT(*) FROM users WHERE joined_at >= ?", (since,))
+            joined = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM users WHERE last_start >= ?", (since,))
+            starts = cur.fetchone()[0]
+            return joined, starts
+
+        hour_join, hour_start = count_since(3600)
+        day_join, day_start = count_since(86400)
+        week_join, week_start = count_since(7 * 86400)
+        month_join, month_start = count_since(30 * 86400)
+
+        return {
+            "total": total,
+            "hour_join": hour_join, "hour_start": hour_start,
+            "day_join": day_join, "day_start": day_start,
+            "week_join": week_join, "week_start": week_start,
+            "month_join": month_join, "month_start": month_start
+        }
+
     except Exception as e:
-        print("[!] خطا در ثبت استارت:", e)
-
-def get_user_stats(since_seconds_ago):
-    """تعداد کاربران جدید از زمان مشخص‌شده تاکنون"""
-    since = int(time.time()) - since_seconds_ago
-    cur.execute("SELECT COUNT(*) FROM users WHERE joined_at >= ?", (since,))
-    return cur.fetchone()[0]
-
-def get_start_stats(since_seconds_ago):
-    """تعداد استارت‌های ثبت‌شده از زمان مشخص‌شده تاکنون"""
-    since = int(time.time()) - since_seconds_ago
-    cur.execute("SELECT COUNT(*) FROM starts WHERE timestamp >= ?", (since,))
-    return cur.fetchone()[0]
+        print("[!] خطا در آمارگیری:", e)
+        return {}
