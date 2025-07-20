@@ -12,7 +12,6 @@ users = {}
 pinging = True
 active_users = set()
 
-# ------------------ ابزار ارسال ------------------
 def send(method, data):
     response = requests.post(f"{URL}/{method}", json=data).json()
     print(f"Response from {method}: {response}")
@@ -21,7 +20,6 @@ def send(method, data):
 def delete(chat_id, message_id):
     send("deleteMessage", {"chat_id": chat_id, "message_id": message_id})
 
-# ------------------ بررسی عضویت کانال ------------------
 def is_joined(user_id, channel_link):
     try:
         username = channel_link.split("/")[-1]
@@ -41,7 +39,6 @@ def make_force_join_markup(channels, code):
     buttons.append([{"text": "✅ عضو شدم", "callback_data": f"checksub_{code}"}])
     return {"inline_keyboard": buttons}
 
-# ------------------ پینگ ------------------
 def ping():
     while pinging:
         try:
@@ -52,7 +49,6 @@ def ping():
 
 threading.Thread(target=ping, daemon=True).start()
 
-# ------------------ بررسی خروج کاربران ------------------
 def monitor_subscriptions():
     while True:
         for uid in list(active_users):
@@ -68,7 +64,6 @@ def monitor_subscriptions():
 
 threading.Thread(target=monitor_subscriptions, daemon=True).start()
 
-# ------------------ روت ها ------------------
 @app.route("/")
 def index():
     return "Bot is running!"
@@ -85,10 +80,8 @@ def webhook():
         text = msg.get("text", "")
         state = users.get(uid, {})
 
-        # ذخیره کاربر برای ارسال همگانی
         save_user_id(uid)
 
-        # ---------- /start با کد ----------
         if text.startswith("/start "):
             code = text.split("/start ")[1]
             file_id = get_file(code)
@@ -101,11 +94,15 @@ def webhook():
                         "reply_markup": make_force_join_markup(unjoined, code)
                     })
                     return "ok"
-                sent = send("sendVideo", {"chat_id": cid, "video": file_id})
-                if "result" in sent:
-                    mid = sent["result"]["message_id"]
-                    send("sendMessage", {"chat_id": cid, "text": "⚠️این محتوا تا ۲۰ ثانیه دیگر پاک میشود "})
-                    threading.Timer(20, delete, args=(cid, mid)).start()
+                if "|" in file_id:
+                    for fid in file_id.split("|"):
+                        send("sendDocument", {"chat_id": cid, "document": fid})
+                else:
+                    sent = send("sendVideo", {"chat_id": cid, "video": file_id})
+                    if "result" in sent:
+                        mid = sent["result"]["message_id"]
+                        send("sendMessage", {"chat_id": cid, "text": "⚠️این محتوا تا ۲۰ ثانیه دیگر پاک میشود "})
+                        threading.Timer(20, delete, args=(cid, mid)).start()
                 active_users.add(uid)
             return "ok"
 
@@ -148,34 +145,42 @@ def webhook():
             send("sendMessage", {"chat_id": cid, "text": "✅ پیام به همه کاربران ارسال شد."})
 
         elif text == "🔞سوپر" and uid in ADMIN_IDS:
-            users[uid] = {"step": "awaiting_video"}
-            send("sendMessage", {"chat_id": cid, "text": "ای جان یه سوپر ناب برام بفرست 🍌"})
+            users[uid] = {"step": "awaiting_super_files", "files": []}
+            send("sendMessage", {"chat_id": cid, "text": "همه فایل‌هاتو بفرست. هر وقت تموم شد، بنویس مرحله بعد."})
 
-        elif text == "🖼پست" and uid in ADMIN_IDS:
-            users[uid] = {"step": "awaiting_forward"}
-            send("sendMessage", {"chat_id": cid, "text": "محتوا رو برا فوروارد کن یادت نره تگ بزنی روش ✅️"})
-
-        elif state.get("step") == "awaiting_video" and "video" in msg:
-            users[uid]["step"] = "awaiting_caption"
-            users[uid]["file_id"] = msg["video"]["file_id"]
-            send("sendMessage", {"chat_id": cid, "text": "منتظر کپشن خوشکلت هستم 💫"})
+        elif state.get("step") == "awaiting_super_files":
+            if text.strip() == "مرحله بعد":
+                if not state["files"]:
+                    send("sendMessage", {"chat_id": cid, "text": "⛔️ هنوز فایلی نفرستادی."})
+                else:
+                    users[uid]["step"] = "awaiting_caption"
+                    send("sendMessage", {"chat_id": cid, "text": "حالا کپشنتو بفرست ✍️"})
+            elif any(k in msg for k in ["video", "photo", "document", "audio"]):
+                fid = msg.get("video", msg.get("photo", msg.get("document", msg.get("audio")))) or {}
+                if isinstance(fid, list):
+                    fid = fid[-1]
+                file_id = fid.get("file_id")
+                if file_id:
+                    users[uid]["files"].append(file_id)
+                    send("sendMessage", {"chat_id": cid, "text": "✅ فایل ذخیره شد. ادامه بده یا بنویس مرحله بعد."})
+            else:
+                send("sendMessage", {"chat_id": cid, "text": "⚠️ فقط فایل رسانه‌ای (عکس، ویدیو، پی‌دی‌اف...) مجازه."})
 
         elif state.get("step") == "awaiting_caption":
-            users[uid]["step"] = "awaiting_cover"
             users[uid]["caption"] = text
-            send("sendMessage", {"chat_id": cid, "text": "یه عکس برای پیش نمایش بهم بده 📸"})
+            users[uid]["step"] = "awaiting_cover"
+            send("sendMessage", {"chat_id": cid, "text": "اکنون عکس کاور را بفرست 📸"})
 
         elif state.get("step") == "awaiting_cover" and "photo" in msg:
-            file_id = users[uid]["file_id"]
-            caption = users[uid]["caption"]
-            cover_id = msg["photo"][-1]["file_id"]
             code = gen_code()
-            save_file(file_id, code)
+            file_ids = users[uid]["files"]
+            all_files = "|".join(file_ids)
+            save_file(all_files, code)
             link = f"<a href='https://t.me/Up_jozve_bot?start={code}'>مشاهده</a>\n\n{CHANNEL_TAG}"
             send("sendPhoto", {
                 "chat_id": cid,
-                "photo": cover_id,
-                "caption": caption + "\n\n" + link,
+                "photo": msg["photo"][-1]["file_id"],
+                "caption": users[uid]["caption"] + "\n\n" + link,
                 "parse_mode": "HTML"
             })
             users.pop(uid)
@@ -217,14 +222,18 @@ def webhook():
                 if code != "dummy":
                     file_id = get_file(code)
                     if file_id:
-                        sent = send("sendVideo", {"chat_id": cid, "video": file_id})
-                        if "result" in sent:
-                            content_mid = sent["result"]["message_id"]
-                            send("sendMessage", {
-                                "chat_id": cid,
-                                "text": "⚠️ این محتوا تا ۲۰ ثانیه دیگر پاک می‌شود"
-                            })
-                            threading.Timer(20, delete, args=(cid, content_mid)).start()
+                        if "|" in file_id:
+                            for fid in file_id.split("|"):
+                                send("sendDocument", {"chat_id": cid, "document": fid})
+                        else:
+                            sent = send("sendVideo", {"chat_id": cid, "video": file_id})
+                            if "result" in sent:
+                                content_mid = sent["result"]["message_id"]
+                                send("sendMessage", {
+                                    "chat_id": cid,
+                                    "text": "⚠️ این محتوا تا ۲۰ ثانیه دیگر پاک می‌شود"
+                                })
+                                threading.Timer(20, delete, args=(cid, content_mid)).start()
                         active_users.add(uid)
                     else:
                         send("sendMessage", {"chat_id": cid, "text": "❗ فایل یافت نشد."})
@@ -243,94 +252,3 @@ if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
-
-
-# وضعیت موقت برای سوپر ادمین
-superadmin_sessions = {}  # user_id: {files: [], step: 'collecting' | 'awaiting_cover' | 'awaiting_caption', cover: None, caption: None}
-
-def reset_superadmin(user_id):
-    if user_id in superadmin_sessions:
-        del superadmin_sessions[user_id]
-
-def send_admin_menu(chat_id):
-    send("sendMessage", {
-        "chat_id": chat_id,
-        "text": "📤 لطفاً فایل‌های خود را ارسال کنید. سپس روی دکمه 'مرحله بعد' کلیک کنید.",
-        "reply_markup": {
-            "keyboard": [[{"text": "مرحله بعد"}]],
-            "resize_keyboard": True
-        }
-    })
-
-
-# ------------ سوپر ادمین آپلود چندفایلی ------------
-
-@app.route(f"/{BOT_TOKEN}", methods=["POST"])
-def webhook():
-    update = request.get_json()
-
-    if "message" in update:
-        msg = update["message"]
-        user_id = msg["from"]["id"]
-        text = msg.get("text")
-        chat_id = msg["chat"]["id"]
-
-        if user_id in ADMIN_IDS:
-            session = superadmin_sessions.setdefault(user_id, {"files": [], "step": "collecting", "cover": None, "caption": None})
-
-            # مرحله دریافت فایل‌ها
-            if session["step"] == "collecting":
-                if "document" in msg or "video" in msg or "photo" in msg:
-                    if "photo" in msg:
-                        file_id = msg["photo"][-1]["file_id"]
-                    elif "video" in msg:
-                        file_id = msg["video"]["file_id"]
-                    else:
-                        file_id = msg["document"]["file_id"]
-
-                    session["files"].append(file_id)
-                    send("sendMessage", {"chat_id": chat_id, "text": "✅ فایل دریافت شد."})
-                    return "ok"
-
-                elif text == "مرحله بعد":
-                    if not session["files"]:
-                        send("sendMessage", {"chat_id": chat_id, "text": "❌ هیچ فایلی ارسال نشده."})
-                        return "ok"
-
-                    session["step"] = "awaiting_cover"
-                    send("sendMessage", {"chat_id": chat_id, "text": "📥 لطفاً یک عکس برای کاور ارسال کنید."})
-                    return "ok"
-
-            # مرحله دریافت کاور
-            elif session["step"] == "awaiting_cover":
-                if "photo" in msg:
-                    session["cover"] = msg["photo"][-1]["file_id"]
-                    session["step"] = "awaiting_caption"
-                    send("sendMessage", {"chat_id": chat_id, "text": "📝 لطفاً کپشن مورد نظر را بنویسید."})
-                    return "ok"
-                else:
-                    send("sendMessage", {"chat_id": chat_id, "text": "❌ لطفاً فقط عکس ارسال کنید."})
-                    return "ok"
-
-            # مرحله دریافت کپشن
-            elif session["step"] == "awaiting_caption":
-                if text:
-                    session["caption"] = text
-                    from database import save_collection
-                    from utils import gen_code
-                    code = gen_code()
-                    save_collection(code, session["files"], session["cover"], session["caption"])
-                    reset_superadmin(user_id)
-                    send("sendMessage", {
-                        "chat_id": chat_id,
-                        "text": f"✅ فایل‌ها ذخیره شدند.\nلینک مشاهده: https://yourdomain.com/view/{code}"
-                    })
-                    return "ok"
-                else:
-                    send("sendMessage", {"chat_id": chat_id, "text": "❌ لطفاً فقط متن بفرستید."})
-                    return "ok"
-
-    # اگر پیام عادی بود، ادامه هندلر قبلی اجرا بشه
-
-@dp.message_handler(lambda message: message.text == "سوپر 🔞"
