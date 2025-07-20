@@ -1,6 +1,6 @@
 import random
 import string
-from database import save_files as db_save_files, get_files as db_get_files
+from database import save_collection, get_collection
 
 def gen_code(length=8):
     """
@@ -10,14 +10,14 @@ def gen_code(length=8):
     code = ''.join(random.choice(characters) for _ in range(length))
     return code
 
-def save_files(file_ids, code):
+def save_files(file_ids, code, cover=None, caption=None):
     """
-    ذخیره چند فایل با استفاده از database.py
+    ذخیره مجموعه فایل‌ها با کاور و کپشن
     """
-    db_save_files(file_ids, code)
+    save_collection(code, file_ids, cover, caption)
 
 def get_files(code):
     """
-    دریافت همه فایل‌ها با استفاده از database.py
+    دریافت مجموعه فایل‌ها با استفاده از کد یکتا
     """
-    return db_get_files(code)
+    return get_collection(code)  # returns: (files, cover, caption)
