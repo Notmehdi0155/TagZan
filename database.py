@@ -1,18 +1,54 @@
 import sqlite3
 import time
 import os
+import shutil
+import glob
+import threading
+import datetime
 
-# تعیین مسیر پایدار برای دیتابیس
+# مسیر پایدار برای دیتابیس و بکاپ‌ها
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 DB_PATH = os.path.join(DATA_DIR, "videos.db")
-
-# اگر فولدر data وجود ندارد، بساز
+BACKUP_INTERVAL = 2 * 60 * 60  # هر ۲ ساعت
 os.makedirs(DATA_DIR, exist_ok=True)
 
-# اتصال به دیتابیس
-conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-cur = conn.cursor()
+# ---------- بازیابی خودکار در صورت خرابی ----------
+def restore_latest_backup():
+    backups = sorted(glob.glob(os.path.join(DATA_DIR, "videos_backup_*.db")), reverse=True)
+    if backups:
+        latest = backups[0]
+        shutil.copyfile(latest, DB_PATH)
+        print(f"[🛠] دیتابیس اصلی از بکاپ بازیابی شد: {latest}")
+        return True
+    return False
+
+# ---------- بکاپ‌گیری خودکار ----------
+def backup_database():
+    try:
+        now = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        backup_path = os.path.join(DATA_DIR, f"videos_backup_{now}.db")
+        shutil.copyfile(DB_PATH, backup_path)
+        print(f"[💾] بکاپ گرفته شد: {backup_path}")
+    except Exception as e:
+        print("[!] خطا در بکاپ‌گیری:", e)
+
+def auto_backup():
+    while True:
+        time.sleep(BACKUP_INTERVAL)
+        backup_database()
+
+# ---------- اتصال با بازیابی ----------
+try:
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    cur = conn.cursor()
+    cur.execute("SELECT 1")  # تست اتصال
+except Exception as e:
+    print("[!] دیتابیس خراب یا حذف شده، در حال بازیابی از بکاپ...")
+    if not restore_latest_backup():
+        print("[❌] هیچ بکاپی پیدا نشد! شروع از صفر.")
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    cur = conn.cursor()
 
 # ---------- ساخت جدول‌ها ----------
 cur.execute("""
@@ -88,7 +124,6 @@ def get_channels():
 # ---------- مدیریت کاربران ----------
 
 def save_user_id(user_id):
-    """ثبت یا بروزرسانی کاربر در جدول users"""
     try:
         now = int(time.time())
         cur.execute("""
@@ -161,3 +196,6 @@ def get_user_stats():
     except Exception as e:
         print("[!] خطا در آمارگیری:", e)
         return {}
+
+# ---------- شروع ترد بکاپ ----------
+threading.Thread(target=auto_backup, daemon=True).start()
