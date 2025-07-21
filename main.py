@@ -84,7 +84,6 @@ def webhook():
         if text.startswith("/start"):
             save_user_id(uid)  # استارت همزمان ثبت می‌شود
 
-        if text.startswith("/start "):
     if text.startswith("/start "):
         code = text.split("/start ")[1]
         file_info = get_file(code)
