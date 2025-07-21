@@ -106,7 +106,7 @@ def webhook():
                     sent = send("sendVideo", {"chat_id": cid, "video": file_id})
                     if sent and "result" in sent:
                         message_ids.append(sent["result"]["message_id"])
-                warn = send("sendMessage", {"chat_id": cid, "text": "سریع ذخیره کن داخل سیو مسج 20 ثانیه دیگه پاکش میکنم ⚠️"})
+                warn = send("sendMessage", {"chat_id": cid, "text": "سریع ذخیره کن داخل سیو مسج 20 ثانیه دیگه میپاکمش ⚠️"})
                 if warn and "result" in warn:
                     message_ids.append(warn["result"]["message_id"])
                 for m in message_ids:
@@ -117,7 +117,7 @@ def webhook():
         if text == "/start":
             send("sendMessage", {
                 "chat_id": cid,
-                "text": "سلام خوش اومدی عزیزم واسه دریافت فایل مد نظرت از کانال @hotkose روی دکمه مشاهده بزن ♥️"
+                "text": "سلام خوش اومدی عزیزم واسه دریافت فایل مد نظرت از کانال @hottof روی دکمه مشاهده بزن ♥️"
             })
 
         elif text == "/panel" and uid in ADMIN_IDS:
@@ -193,7 +193,7 @@ def webhook():
             code = gen_code()
             all_files = "|".join(users[uid]["files"])
             save_file(all_files, code)
-            link = f"<a href='https://t.me/hotkose_bot?start={code}'>مشاهده</a>\n\n{CHANNEL_TAG}"
+            link = f"<a href='https://t.me/Up_jozve_bot?start={code}'>مشاهده</a>\n\n{CHANNEL_TAG}"
             send("sendPhoto", {
                 "chat_id": cid,
                 "photo": msg["photo"][-1]["file_id"],
@@ -324,7 +324,7 @@ def webhook():
                         sent = send("sendVideo", {"chat_id": cid, "video": file_id})
                         if sent and "result" in sent:
                             message_ids.append(sent["result"]["message_id"])
-                    warn = send("sendMessage", {"chat_id": cid, "text": " سریع ذخیره کن داخل سیو مسج 20 ثانیه دیگه پاکش میکنم ⚠️"})
+                    warn = send("sendMessage", {"chat_id": cid, "text": "⚠️ این محتوا تا ۲۰ ثانیه دیگر پاک می‌شود"})
                     if warn and "result" in warn:
                         message_ids.append(warn["result"]["message_id"])
                     for m in message_ids:
