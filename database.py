@@ -1,20 +1,16 @@
-
 import sqlite3
 import time
-import requests
-from config import BOT_TOKEN, BACKUP_CHANNEL_ID
 
-# ---------- اتصال به دیتابیس ----------
+# اتصال به دیتابیس
 conn = sqlite3.connect("videos.db", check_same_thread=False)
 cur = conn.cursor()
 
 # ---------- ساخت جدول‌ها ----------
+
 cur.execute("""
 CREATE TABLE IF NOT EXISTS videos (
     code TEXT PRIMARY KEY,
-    file_id TEXT,
-    backup_chat_id INTEGER,
-    backup_msg_id INTEGER
+    file_id TEXT NOT NULL
 )
 """)
 
@@ -40,41 +36,17 @@ conn.commit()
 
 def save_file(file_id, code):
     try:
-        # ارسال فایل به کانال پشتیبان
-        send_url = f"https://api.telegram.org/bot{BOT_TOKEN}/copyMessage"
-        payload = {
-            "chat_id": BACKUP_CHANNEL_ID,
-            "from_chat_id": BACKUP_CHANNEL_ID,
-            "message_id": file_id,  # فرض بر اینه file_id از پیام تلگرام گرفته شده
-            "caption": f"file_code: {code}",
-            "parse_mode": "HTML"
-        }
-        # اگر file_id از نوع فایل است نه پیام، باید sendDocument استفاده شود
-        send_doc_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument"
-        r = requests.post(send_doc_url, data={
-            "chat_id": BACKUP_CHANNEL_ID,
-            "document": file_id,
-            "caption": f"file_code: {code}"
-        }).json()
-
-        backup_chat_id = BACKUP_CHANNEL_ID
-        backup_msg_id = r.get("result", {}).get("message_id")
-
-        # ذخیره در دیتابیس
-        cur.execute(
-            "INSERT OR REPLACE INTO videos (code, file_id, backup_chat_id, backup_msg_id) VALUES (?, ?, ?, ?)",
-            (code, file_id, backup_chat_id, backup_msg_id)
-        )
+        cur.execute("INSERT OR REPLACE INTO videos (code, file_id) VALUES (?, ?)", (code, file_id))
         conn.commit()
-        print(f"[+] فایل ذخیره شد: {code} (msg_id: {backup_msg_id})")
+        print(f"[+] فایل ذخیره شد: {code}")
     except Exception as e:
         print("[!] خطا در ذخیره فایل:", e)
 
 def get_file(code):
     try:
-        cur.execute("SELECT file_id, backup_chat_id, backup_msg_id FROM videos WHERE code = ?", (code,))
+        cur.execute("SELECT file_id FROM videos WHERE code = ?", (code,))
         row = cur.fetchone()
-        return row if row else None
+        return row[0] if row else None
     except Exception as e:
         print("[!] خطا در دریافت فایل:", e)
         return None
@@ -108,69 +80,76 @@ def get_channels():
 # ---------- مدیریت کاربران ----------
 
 def save_user_id(user_id):
+    """ثبت یا بروزرسانی کاربر در جدول users"""
     try:
-        cur.execute("INSERT OR IGNORE INTO users (id, joined_at) VALUES (?, ?)", (user_id, int(time.time())))
+        now = int(time.time())
+        cur.execute("""
+            INSERT INTO users (id, joined_at, start_count, last_start)
+            VALUES (?, ?, 1, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                start_count = start_count + 1,
+                last_start = excluded.last_start
+        """, (user_id, now, now))
         conn.commit()
+        print(f"[+] کاربر ثبت شد: {user_id}")
     except Exception as e:
-        print("[!] خطا در ذخیره کاربر:", e)
+        print("[!] خطا در ذخیره آیدی:", e)
 
 def get_all_user_ids():
     try:
         cur.execute("SELECT id FROM users")
         return [row[0] for row in cur.fetchall()]
     except Exception as e:
-        print("[!] خطا در دریافت کاربران:", e)
+        print("[!] خطا در دریافت لیست کاربران:", e)
         return []
 
-def get_active_users():
+# ---------- آمارگیری ----------
+
+def get_active_users(seconds):
     try:
-        one_hour_ago = int(time.time()) - 3600
-        cur.execute("SELECT id FROM users WHERE last_start >= ?", (one_hour_ago,))
-        return [row[0] for row in cur.fetchall()]
+        since = int(time.time()) - seconds
+        cur.execute("SELECT COUNT(*) FROM users WHERE joined_at >= ?", (since,))
+        return cur.fetchone()[0]
     except Exception as e:
         print("[!] خطا در دریافت کاربران فعال:", e)
-        return []
-
-def get_start_count():
-    try:
-        cur.execute("SELECT SUM(start_count) FROM users")
-        return cur.fetchone()[0] or 0
-    except Exception as e:
-        print("[!] خطا در شمارش استارت:", e)
         return 0
 
-
-# ---------- ارسال فایل از کانال بکاپ ----------
-
-def send_file_from_backup(code, user_id):
+def get_start_count(seconds):
     try:
-        result = get_file(code)
-        if not result:
-            print(f"[!] هیچ فایلی با این کد یافت نشد: {code}")
-            return False
+        since = int(time.time()) - seconds
+        cur.execute("SELECT COUNT(*) FROM users WHERE last_start >= ?", (since,))
+        return cur.fetchone()[0]
+    except Exception as e:
+        print("[!] خطا در دریافت تعداد استارت:", e)
+        return 0
 
-        file_id, backup_chat_id, backup_msg_id = result
+def get_user_stats():
+    try:
+        now = int(time.time())
+        cur.execute("SELECT COUNT(*) FROM users")
+        total = cur.fetchone()[0]
 
-        if not backup_chat_id or not backup_msg_id:
-            print(f"[!] اطلاعات پیام پشتیبان ناقص است برای کد: {code}")
-            return False
+        def count_since(seconds):
+            since = now - seconds
+            cur.execute("SELECT COUNT(*) FROM users WHERE joined_at >= ?", (since,))
+            joined = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM users WHERE last_start >= ?", (since,))
+            starts = cur.fetchone()[0]
+            return joined, starts
 
-        # ارسال فایل با copyMessage از کانال به کاربر
-        copy_url = f"https://api.telegram.org/bot{BOT_TOKEN}/copyMessage"
-        payload = {
-            "chat_id": user_id,
-            "from_chat_id": backup_chat_id,
-            "message_id": backup_msg_id
+        hour_join, hour_start = count_since(3600)
+        day_join, day_start = count_since(86400)
+        week_join, week_start = count_since(7 * 86400)
+        month_join, month_start = count_since(30 * 86400)
+
+        return {
+            "total": total,
+            "hour_join": hour_join, "hour_start": hour_start,
+            "day_join": day_join, "day_start": day_start,
+            "week_join": week_join, "week_start": week_start,
+            "month_join": month_join, "month_start": month_start
         }
-        r = requests.post(copy_url, data=payload).json()
-
-        if r.get("ok"):
-            print(f"[+] فایل از بکاپ ارسال شد برای کاربر: {user_id}")
-            return True
-        else:
-            print(f"[!] خطا در ارسال از بکاپ:", r)
-            return False
 
     except Exception as e:
-        print("[!] خطا در ارسال فایل از بکاپ:", e)
-        return False
+        print("[!] خطا در آمارگیری:", e)
+        return {}
