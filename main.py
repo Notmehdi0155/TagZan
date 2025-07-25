@@ -1,5 +1,6 @@
 from flask import Flask, request
 import requests
+from config import PRIVATE_CHANNEL_ID  # آیدی عددی کانال خصوصی
 import threading
 import time
 from config import BOT_TOKEN, WEBHOOK_URL, ADMIN_IDS, CHANNEL_TAG, PING_INTERVAL
