@@ -1,6 +1,6 @@
 # config.py
 
-BOT_TOKEN = "8035328341:AAGZ9r9xoTJRXJYBRS5I4QeM8iNfRuEbu8k"
+BOT_TOKEN = "8035328341:AAE63qLPYFh-eS3TUSHnQ0Key6V_8a5s7N0"
 WEBHOOK_URL = "https://tagzan-2.onrender.com"
 ADMIN_IDS = [6387942633]  # شناسه عددی ادمین‌ها
 CHANNEL_TAG = "@hotkose | کُصِ داغ " 
