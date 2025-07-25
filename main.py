@@ -42,6 +42,32 @@ def make_force_join_markup(channels, code):
     buttons.append([{"text": "✅ عضو شدم", "callback_data": f"checksub_{code}"}])
     return {"inline_keyboard": buttons}
 
+def search_file_in_channel(code):
+    try:
+        offset_id = 0
+        while True:
+            r = requests.get(f"{URL}/getChatHistory", params={
+                "chat_id": PRIVATE_CHANNEL_ID,
+                "limit": 100,
+                "offset_id": offset_id
+            }).json()
+            messages = r.get("result", [])
+            if not messages:
+                break
+            for m in messages:
+                cap = m.get("caption", "")
+                if f"code:{code}" in cap:
+                    if "document" in m:
+                        return m["document"]["file_id"]
+                    elif "video" in m:
+                        return m["video"]["file_id"]
+                    elif "photo" in m:
+                        return m["photo"][-1]["file_id"]
+            offset_id = messages[-1]["message_id"] - 1
+    except Exception as e:
+        print("[!] خطا در جستجو در کانال:", e)
+    return None
+
 def ping():
     while pinging:
         try:
