@@ -86,25 +86,20 @@ def webhook():
 
         if text.startswith("/start "):
             code = text.split("/start ")[1]
-            file_info = get_file(code)
-            if file_info:
-                file_id, backup_chat_id, backup_msg_id = file_info
+            file_id = get_file(code)
+            if file_id:
                 unjoined = get_user_unjoined_channels(uid)
                 if unjoined:
-                    channels = [f"@{c['username']}" for c in unjoined]
-                    markup = json.dumps({"inline_keyboard": [[{
-                        "text": "عضویت ✅",
-                        "callback_data": f"refresh_{code}"}]]})
-                    send("sendMessage", {"chat_id": cid, "text": f"عضو کانال‌های زیر شو سپس دکمه زیر رو بزن:\n\n{chr(10).join(channels)}", "reply_markup": markup})
-                else:
-                    if file_id:
-                        send("sendDocument", {"chat_id": cid, "document": file_id})
-                    else:
-                        send_file_from_backup(code, cid)
-            else:
-                    send_file_from_backup(code, cid)
-        else:
-            send("sendMessage", {"chat_id": cid, "text": "فایلی با این کد یافت نشد 😔"})
+                    send("sendMessage", {
+                        "chat_id": cid,
+                        "text": "فدای اون شومبولت یه همت بکن عضو چنل شو تا فایل رو برات بفرستم ❤️",
+                        "reply_markup": make_force_join_markup(unjoined, code)
+                    })
+                    return "ok"
+                message_ids = []
+                if "|" in file_id:
+                    for fid in file_id.split("|"):
+                        sent = send("sendDocument", {"chat_id": cid, "document": fid})
                         if sent and "result" in sent:
                             message_ids.append(sent["result"]["message_id"])
                 else:
@@ -198,7 +193,7 @@ def webhook():
             code = gen_code()
             all_files = "|".join(users[uid]["files"])
             save_file(all_files, code)
-            link = f"<a href='https://t.me/hotkose_bot?start={code}'>مشاهده</a>\n\n{CHANNEL_TAG}"
+            link = f"<a href='https://t.me/Up_jozve_bot?start={code}'>مشاهده</a>\n\n{CHANNEL_TAG}"
             send("sendPhoto", {
                 "chat_id": cid,
                 "photo": msg["photo"][-1]["file_id"],
