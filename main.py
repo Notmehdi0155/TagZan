@@ -114,6 +114,8 @@ def webhook():
         if text.startswith("/start "):
             code = text.split("/start ")[1]
             file_id = get_file(code)
+if not file_id:
+    file_id = search_file_in_channel(code)
             if file_id:
                 unjoined = get_user_unjoined_channels(uid)
                 if unjoined:
