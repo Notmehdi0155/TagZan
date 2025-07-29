@@ -168,53 +168,7 @@ def webhook():
                 "reply_markup": {"keyboard": [[{"text": "⏭ مرحله بعد"}]], "resize_keyboard": True}
             })
 
-        elif state.get("step") == "awaiting_super_files":
-            if text.strip() == "⏭ مرحله بعد":
-                if not state["files"]:
-                    send("sendMessage", {"chat_id": cid, "text": "⛔️ هنوز فایلی نفرستادی."})
-                else:
-                    users[uid]["step"] = "awaiting_caption"
-                    send("sendMessage", {"chat_id": cid, "text": "حالا کپشنتو بفرست ✍️", "reply_markup": {"remove_keyboard": True}})
-            elif any(k in msg for k in ["video", "photo", "document", "audio"]):
-                fid = msg.get("video", msg.get("photo", msg.get("document", msg.get("audio")))) or {}
-                if isinstance(fid, list): fid = fid[-1]
-                file_id = fid.get("file_id")
-                if file_id:
-                    users[uid]["files"].append(file_id)
-                    send("sendMessage", {
-                        "chat_id": cid, "text": "✅ فایل ذخیره شد.",
-                        "reply_markup": {"keyboard": [[{"text": "⏭ مرحله بعد"}]], "resize_keyboard": True}
-                    })
-            else:
-                send("sendMessage", {"chat_id": cid, "text": "⚠️ فقط فایل رسانه‌ای مجازه."})
-
-        elif state.get("step") == "awaiting_caption":
-            users[uid]["caption"] = text
-            users[uid]["step"] = "awaiting_cover"
-            send("sendMessage", {"chat_id": cid, "text": "اکنون عکس کاور را بفرست 📸"})
-
-        elif state.get("step") == "awaiting_cover" and "photo" in msg:
-            code = gen_code()
-            all_files = "|".join(users[uid]["files"])
-            save_file(all_files, code)
-            link = f"<a href='https://t.me/Up_jozve_bot?start={code}'>مشاهده</a>\n\n{CHANNEL_TAG}"
-            send("sendPhoto", {
-                "chat_id": cid,
-                "photo": msg["photo"][-1]["file_id"],
-                "caption": users[uid]["caption"] + "\n\n" + link,
-                "parse_mode": "HTML"
-            })
-            users.pop(uid)
-            send("sendMessage", {
-                "chat_id": cid, "text": "درخواست شما تایید شد✅️",
-                "reply_markup": {"keyboard": [
-                    [{"text": "📤آپلود"}],
-                    [{"text": "🖼پست"}],
-                    [{"text": "🔐 عضویت اجباری"}],
-                    [{"text": "📢 ارسالی همگانی"}],
-                    [{"text": "📊 آمار"}]
-                ], "resize_keyboard": True}
-            })
+        
 
         elif text == "🖼پست" and uid in ADMIN_IDS:
             users[uid] = {"step": "awaiting_post_file"}
