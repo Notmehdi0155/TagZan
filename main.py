@@ -1,6 +1,5 @@
 from flask import Flask, request
 import requests
-from config import PRIVATE_CHANNEL_ID  # آیدی عددی کانال خصوصی
 import threading
 import time
 from config import BOT_TOKEN, WEBHOOK_URL, ADMIN_IDS, CHANNEL_TAG, PING_INTERVAL
@@ -41,32 +40,6 @@ def make_force_join_markup(channels, code):
     buttons = [[{"text": f"📢 کانال {i+1}", "url": ch}] for i, ch in enumerate(channels)]
     buttons.append([{"text": "✅ عضو شدم", "callback_data": f"checksub_{code}"}])
     return {"inline_keyboard": buttons}
-
-def search_file_in_channel(code):
-    try:
-        offset_id = 0
-        while True:
-            r = requests.get(f"{URL}/getChatHistory", params={
-                "chat_id": PRIVATE_CHANNEL_ID,
-                "limit": 100,
-                "offset_id": offset_id
-            }).json()
-            messages = r.get("result", [])
-            if not messages:
-                break
-            for m in messages:
-                cap = m.get("caption", "")
-                if f"code:{code}" in cap:
-                    if "document" in m:
-                        return m["document"]["file_id"]
-                    elif "video" in m:
-                        return m["video"]["file_id"]
-                    elif "photo" in m:
-                        return m["photo"][-1]["file_id"]
-            offset_id = messages[-1]["message_id"] - 1
-    except Exception as e:
-        print("[!] خطا در جستجو در کانال:", e)
-    return None
 
 def ping():
     while pinging:
@@ -114,8 +87,6 @@ def webhook():
         if text.startswith("/start "):
             code = text.split("/start ")[1]
             file_id = get_file(code)
-if not file_id:
-    file_id = search_file_in_channel(code)
             if file_id:
                 unjoined = get_user_unjoined_channels(uid)
                 if unjoined:
