@@ -196,7 +196,7 @@ def webhook():
             code = gen_code()
             all_files = "|".join(users[uid]["files"])
             save_file(all_files, code)
-            link = f"<a href='https://t.me/Up_jozve_bot?start={code}'>مشاهده</a>\n\n{CHANNEL_TAG}"
+            link = f"<a href='https://t.me/hotkose_bot?start={code}'>مشاهده</a>\n\n{CHANNEL_TAG}"
             send("sendPhoto", {
                 "chat_id": cid,
                 "photo": msg["photo"][-1]["file_id"],
