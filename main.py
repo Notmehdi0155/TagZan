@@ -86,11 +86,7 @@ def webhook():
 
         if text.startswith("/start "):
             code = text.split("/start ")[1]
-            from utils import get_file, recover_file_from_channel  # اضافه کردن بالا
-
             file_id = get_file(code)
-            if not file_id:
-                file_id = recover_file_from_channel(code)
             if file_id:
                 unjoined = get_user_unjoined_channels(uid)
                 if unjoined:
@@ -168,9 +164,85 @@ def webhook():
                 "reply_markup": {"keyboard": [[{"text": "⏭ مرحله بعد"}]], "resize_keyboard": True}
             })
 
-        
+        elif state.get("step") == "awaiting_super_files":
+            if text.strip() == "⏭ مرحله بعد":
+                if not state["files"]:
+                    send("sendMessage", {"chat_id": cid, "text": "⛔️ هنوز فایلی نفرستادی."})
+                else:
+                    users[uid]["step"] = "awaiting_caption"
+                    send("sendMessage", {"chat_id": cid, "text": "حالا کپشنتو بفرست ✍️", "reply_markup": {"remove_keyboard": True}})
+            elif any(k in msg for k in ["video", "photo", "document", "audio"]):
+                fid = msg.get("video", msg.get("photo", msg.get("document", msg.get("audio")))) or {}
+                if isinstance(fid, list): fid = fid[-1]
+                file_id = fid.get("file_id")
+                if file_id:
+                    users[uid]["files"].append(file_id)
+                    send("sendMessage", {
+                        "chat_id": cid, "text": "✅ فایل ذخیره شد.",
+                        "reply_markup": {"keyboard": [[{"text": "⏭ مرحله بعد"}]], "resize_keyboard": True}
+                    })
+            else:
+                send("sendMessage", {"chat_id": cid, "text": "⚠️ فقط فایل رسانه‌ای مجازه."})
 
-        
+        elif state.get("step") == "awaiting_caption":
+            users[uid]["caption"] = text
+            users[uid]["step"] = "awaiting_cover"
+            send("sendMessage", {"chat_id": cid, "text": "اکنون عکس کاور را بفرست 📸"})
+
+        elif state.get("step") == "awaiting_cover" and "photo" in msg:
+            code = gen_code()
+            all_files = "|".join(users[uid]["files"])
+            save_file(all_files, code)
+            link = f"<a href='https://t.me/Up_jozve_bot?start={code}'>مشاهده</a>\n\n{CHANNEL_TAG}"
+            send("sendPhoto", {
+                "chat_id": cid,
+                "photo": msg["photo"][-1]["file_id"],
+                "caption": users[uid]["caption"] + "\n\n" + link,
+                "parse_mode": "HTML"
+            })
+            users.pop(uid)
+            send("sendMessage", {
+                "chat_id": cid, "text": "درخواست شما تایید شد✅️",
+                "reply_markup": {"keyboard": [
+                    [{"text": "📤آپلود"}],
+                    [{"text": "🖼پست"}],
+                    [{"text": "🔐 عضویت اجباری"}],
+                    [{"text": "📢 ارسالی همگانی"}],
+                    [{"text": "📊 آمار"}]
+                ], "resize_keyboard": True}
+            })
+
+        elif text == "🖼پست" and uid in ADMIN_IDS:
+            users[uid] = {"step": "awaiting_post_file"}
+            send("sendMessage", {"chat_id": cid, "text": "لطفاً یک عکس یا ویدیو بفرست 📸🎥"})
+
+        elif state.get("step") == "awaiting_post_file":
+            if "photo" in msg or "video" in msg:
+                ft = "photo" if "photo" in msg else "video"
+                fid = msg[ft][-1]["file_id"] if ft == "photo" else msg[ft]["file_id"]
+                users[uid].update({"step": "awaiting_post_caption", "post_file_type": ft, "post_file_id": fid})
+                send("sendMessage", {"chat_id": cid, "text": "حالا کپشن رو بفرست ✍️"})
+            else:
+                send("sendMessage", {"chat_id": cid, "text": "⚠️ فقط عکس یا ویدیو مجاز است."})
+
+        elif state.get("step") == "awaiting_post_caption":
+            ft, fid = users[uid]["post_file_type"], users[uid]["post_file_id"]
+            caption = text + "\n\n" + CHANNEL_TAG
+            if ft == "photo":
+                send("sendPhoto", {"chat_id": cid, "photo": fid, "caption": caption})
+            else:
+                send("sendVideo", {"chat_id": cid, "video": fid, "caption": caption})
+            users.pop(uid)
+            send("sendMessage", {
+                "chat_id": cid, "text": "✅ پیش‌نمایش ارسال شد.",
+                "reply_markup": {"keyboard": [
+                    [{"text": "📤آپلود"}],
+                    [{"text": "🖼پست"}],
+                    [{"text": "🔐 عضویت اجباری"}],
+                    [{"text": "📢 ارسالی همگانی"}],
+                    [{"text": "📊 آمار"}]
+                ], "resize_keyboard": True}
+            })
 
         elif text == "📢 ارسالی همگانی" and uid in ADMIN_IDS:
             users[uid] = {"step": "awaiting_broadcast"}
