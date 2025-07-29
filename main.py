@@ -170,37 +170,7 @@ def webhook():
 
         
 
-        elif text == "🖼پست" and uid in ADMIN_IDS:
-            users[uid] = {"step": "awaiting_post_file"}
-            send("sendMessage", {"chat_id": cid, "text": "لطفاً یک عکس یا ویدیو بفرست 📸🎥"})
-
-        elif state.get("step") == "awaiting_post_file":
-            if "photo" in msg or "video" in msg:
-                ft = "photo" if "photo" in msg else "video"
-                fid = msg[ft][-1]["file_id"] if ft == "photo" else msg[ft]["file_id"]
-                users[uid].update({"step": "awaiting_post_caption", "post_file_type": ft, "post_file_id": fid})
-                send("sendMessage", {"chat_id": cid, "text": "حالا کپشن رو بفرست ✍️"})
-            else:
-                send("sendMessage", {"chat_id": cid, "text": "⚠️ فقط عکس یا ویدیو مجاز است."})
-
-        elif state.get("step") == "awaiting_post_caption":
-            ft, fid = users[uid]["post_file_type"], users[uid]["post_file_id"]
-            caption = text + "\n\n" + CHANNEL_TAG
-            if ft == "photo":
-                send("sendPhoto", {"chat_id": cid, "photo": fid, "caption": caption})
-            else:
-                send("sendVideo", {"chat_id": cid, "video": fid, "caption": caption})
-            users.pop(uid)
-            send("sendMessage", {
-                "chat_id": cid, "text": "✅ پیش‌نمایش ارسال شد.",
-                "reply_markup": {"keyboard": [
-                    [{"text": "📤آپلود"}],
-                    [{"text": "🖼پست"}],
-                    [{"text": "🔐 عضویت اجباری"}],
-                    [{"text": "📢 ارسالی همگانی"}],
-                    [{"text": "📊 آمار"}]
-                ], "resize_keyboard": True}
-            })
+        
 
         elif text == "📢 ارسالی همگانی" and uid in ADMIN_IDS:
             users[uid] = {"step": "awaiting_broadcast"}
