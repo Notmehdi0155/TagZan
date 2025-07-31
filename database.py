@@ -1,8 +1,15 @@
-import sqlite3
+import psycopg2
+from psycopg2.extras import RealDictCursor
 import time
 
-# اتصال به دیتابیس
-conn = sqlite3.connect("videos.db", check_same_thread=False)
+# اتصال به دیتابیس PostgreSQL
+conn = psycopg2.connect(
+    dbname="DB_NAME",
+    user="DB_USER",
+    password="DB_PASSWORD",
+    host="DB_HOST",
+    port="5432"  # یا پورت دیتابیست
+)
 cur = conn.cursor()
 
 # ---------- ساخت جدول‌ها ----------
@@ -16,17 +23,17 @@ CREATE TABLE IF NOT EXISTS videos (
 
 cur.execute("""
 CREATE TABLE IF NOT EXISTS forced_channels (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     link TEXT UNIQUE NOT NULL
 )
 """)
 
 cur.execute("""
 CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY,
-    joined_at INTEGER,
+    id BIGINT PRIMARY KEY,
+    joined_at BIGINT,
     start_count INTEGER DEFAULT 0,
-    last_start INTEGER
+    last_start BIGINT
 )
 """)
 
@@ -36,15 +43,18 @@ conn.commit()
 
 def save_file(file_id, code):
     try:
-        cur.execute("INSERT OR REPLACE INTO videos (code, file_id) VALUES (?, ?)", (code, file_id))
+        cur.execute("""
+            INSERT INTO videos (code, file_id)
+            VALUES (%s, %s)
+            ON CONFLICT (code) DO UPDATE SET file_id = EXCLUDED.file_id
+        """, (code, file_id))
         conn.commit()
-        print(f"[+] فایل ذخیره شد: {code}")
     except Exception as e:
         print("[!] خطا در ذخیره فایل:", e)
 
 def get_file(code):
     try:
-        cur.execute("SELECT file_id FROM videos WHERE code = ?", (code,))
+        cur.execute("SELECT file_id FROM videos WHERE code = %s", (code,))
         row = cur.fetchone()
         return row[0] if row else None
     except Exception as e:
@@ -55,17 +65,15 @@ def get_file(code):
 
 def add_channel(link):
     try:
-        cur.execute("INSERT OR IGNORE INTO forced_channels (link) VALUES (?)", (link,))
+        cur.execute("INSERT INTO forced_channels (link) VALUES (%s) ON CONFLICT DO NOTHING", (link,))
         conn.commit()
-        print(f"[+] کانال اضافه شد: {link}")
     except Exception as e:
         print("[!] خطا در افزودن کانال:", e)
 
 def remove_channel(link):
     try:
-        cur.execute("DELETE FROM forced_channels WHERE link = ?", (link,))
+        cur.execute("DELETE FROM forced_channels WHERE link = %s", (link,))
         conn.commit()
-        print(f"[-] کانال حذف شد: {link}")
     except Exception as e:
         print("[!] خطا در حذف کانال:", e)
 
@@ -80,18 +88,16 @@ def get_channels():
 # ---------- مدیریت کاربران ----------
 
 def save_user_id(user_id):
-    """ثبت یا بروزرسانی کاربر در جدول users"""
+    now = int(time.time())
     try:
-        now = int(time.time())
         cur.execute("""
             INSERT INTO users (id, joined_at, start_count, last_start)
-            VALUES (?, ?, 1, ?)
-            ON CONFLICT(id) DO UPDATE SET
-                start_count = start_count + 1,
-                last_start = excluded.last_start
+            VALUES (%s, %s, 1, %s)
+            ON CONFLICT (id) DO UPDATE SET
+                start_count = users.start_count + 1,
+                last_start = EXCLUDED.last_start
         """, (user_id, now, now))
         conn.commit()
-        print(f"[+] کاربر ثبت شد: {user_id}")
     except Exception as e:
         print("[!] خطا در ذخیره آیدی:", e)
 
@@ -108,7 +114,7 @@ def get_all_user_ids():
 def get_active_users(seconds):
     try:
         since = int(time.time()) - seconds
-        cur.execute("SELECT COUNT(*) FROM users WHERE joined_at >= ?", (since,))
+        cur.execute("SELECT COUNT(*) FROM users WHERE joined_at >= %s", (since,))
         return cur.fetchone()[0]
     except Exception as e:
         print("[!] خطا در دریافت کاربران فعال:", e)
@@ -117,7 +123,7 @@ def get_active_users(seconds):
 def get_start_count(seconds):
     try:
         since = int(time.time()) - seconds
-        cur.execute("SELECT COUNT(*) FROM users WHERE last_start >= ?", (since,))
+        cur.execute("SELECT COUNT(*) FROM users WHERE last_start >= %s", (since,))
         return cur.fetchone()[0]
     except Exception as e:
         print("[!] خطا در دریافت تعداد استارت:", e)
@@ -131,9 +137,9 @@ def get_user_stats():
 
         def count_since(seconds):
             since = now - seconds
-            cur.execute("SELECT COUNT(*) FROM users WHERE joined_at >= ?", (since,))
+            cur.execute("SELECT COUNT(*) FROM users WHERE joined_at >= %s", (since,))
             joined = cur.fetchone()[0]
-            cur.execute("SELECT COUNT(*) FROM users WHERE last_start >= ?", (since,))
+            cur.execute("SELECT COUNT(*) FROM users WHERE last_start >= %s", (since,))
             starts = cur.fetchone()[0]
             return joined, starts
 
