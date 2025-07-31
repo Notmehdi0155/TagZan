@@ -3,8 +3,10 @@ import requests
 import threading
 import time
 from config import BOT_TOKEN, WEBHOOK_URL, ADMIN_IDS, CHANNEL_TAG, PING_INTERVAL
-from bot.db.models import setup_tables
-setup_tables()
+from database import (
+    save_file, get_file, get_channels, add_channel, remove_channel,
+    get_all_user_ids, save_user_id, get_active_users, get_start_count
+)
 from utils import gen_code
 
 app = Flask(__name__)
@@ -84,10 +86,7 @@ def webhook():
 
         if text.startswith("/start "):
             code = text.split("/start ")[1]
-            from utils import get_file, recover_file_from_channel  # اضافه کردن بالا
             file_id = get_file(code)
-            if not file_id:
-               file_id = recover_file_from_channel(code)
             if file_id:
                 unjoined = get_user_unjoined_channels(uid)
                 if unjoined:
@@ -194,7 +193,7 @@ def webhook():
             code = gen_code()
             all_files = "|".join(users[uid]["files"])
             save_file(all_files, code)
-            link = f"<a href='https://t.me/hotkose_bot?start={code}'>مشاهده</a>\n\n{CHANNEL_TAG}"
+            link = f"<a href='https://t.me/Up_jozve_bot?start={code}'>مشاهده</a>\n\n{CHANNEL_TAG}"
             send("sendPhoto", {
                 "chat_id": cid,
                 "photo": msg["photo"][-1]["file_id"],
